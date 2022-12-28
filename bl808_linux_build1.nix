@@ -67,10 +67,20 @@ let
     version = "1.0";
     hash = "sha256-sbSDh05dLstJ+fhSWXFa2Ut2+WJ7Pen6Z39spc5mYkI=";
   };
+  thead-debugserver-download = pkgs.fetchzip {
+    url = "https://dl.sipeed.com/fileList/MAIX/M1s/M1s_Dock/9_Driver/cklink/T-Head-DebugServer-linux-x86_64-V5.16.5-20221021.sh.tar.gz";
+    hash = "sha256-IjDf0ynPegwpFukMbPrR54eBK3BjNDRN6ZBKV/I1g84=";
+  };
+  prebuilt-linux = pkgs.fetchzip {
+    url = "https://dl.sipeed.com/fileList/MAIX/M1s/M1s_Dock/7_Firmware/m1sdock_linux_20221116.zip";
+    stripRoot = false;
+    hash = "sha256-oALCXSI5pK0g/M2cn5kVOos+TnbxyuZoKMFhI0DBsrM=";
+  };
 
   downloads = {
     inherit prebuiltCmake prebuiltGccBaremetal prebuiltGccLinux
-        LabDevCube bflb-iot-tool-pypi bflb-mcu-tool-pypi pycklink-pypi bflb-crypto-plus-pypi;
+      LabDevCube bflb-iot-tool-pypi bflb-mcu-tool-pypi pycklink-pypi bflb-crypto-plus-pypi
+      thead-debugserver-download prebuilt-linux;
   };
   keep-downloads = pkgs.linkFarm "bl808_downloads" downloads;
 
@@ -188,12 +198,55 @@ let
     version = "1.8.1";
     src = bflb-iot-tool-pypi;
   };
+
+  thead-debugserver = pkgs.stdenv.mkDerivation {
+    name = "thead-debugserver";
+
+    src = thead-debugserver-download;
+
+    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+    buildInputs = with pkgs; [ libusb libstdcxx5 ];
+
+    # The download is an interactive shell script that doesn't seem to have any provisions
+    # for batch processing. No thanks. That way, we will also avoid sudo and 777+suid permissions.
+    unpackPhase = ''
+      tail -n+282 $src/*.sh | tar -xz
+      cd T-HEAD_DebugServer
+    '';
+
+    buildPhase = ''
+      #FIXME The original script is setting +x and +s on many .elf and .so files. Do we really need suid anywhere?
+      chmod +x DebugServerConsole.elf
+      find -name "*.so" -exec chmod -x {} \+
+    '';
+
+    installPhase = ''
+      mkdir -p $out/share $out/bin
+      cp -r . $out/share/thead-debugserver
+
+      #ln $out/share/thead-debugserver/DebugServerConsole.elf $out/bin/DebugServerConsole
+      # -> would look for further files in the wrong place (and then segfault)
+      ( echo "#! ${pkgs.bash}/bin/bash"; echo "exec $out/share/thead-debugserver/DebugServerConsole.elf \"\$@\"" ) \
+        >$out/bin/DebugServerConsole
+      chmod +x $out/bin/DebugServerConsole
+
+      #patchelf --rpath $out/share/thead-debugserver $out/share/thead-debugserver/DebugServerConsole.elf
+      extraAutoPatchelfLibs=($out/share/thead-debugserver)
+    '';
+  };
+
+  bflb-tools = pkgs.runCommand "bflb-tools" {} ''
+    mkdir -p $out/bin
+    ln -s ${bflb-mcu-tool}/bin/bflb-mcu-tool $out/bin/
+    ln -s ${bflb-iot-tool}/bin/bflb-iot-tool $out/bin/
+    ln -s ${thead-debugserver}/bin/DebugServerConsole $out/bin/
+  '';
 in
   with pkgs;
   stdenv.mkDerivation {
     passthru = downloads // {
       inherit keep-downloads
-        bflb-mcu-tool bflb-iot-tool;
+        bflb-mcu-tool bflb-iot-tool bflb-tools thead-debugserver;
     };
 
     name = "bl808_linux";
@@ -218,9 +271,11 @@ in
       #patchelf --print-interpreter toolchain/linux_toolchain/bin/riscv64-unknown-linux-gnu-gcc
       #${env}/bin/build-env -c "ls -l /lib64/ld-linux-x86-64.so.2"
       ${env}/bin/build-env -c "toolchain/linux_toolchain/bin/riscv64-unknown-linux-gnu-gcc --version"
+
+      bash ./switch_to_m1sdock.sh
     '';
 
-    nativeBuildInputs = [ python3 ];
+    nativeBuildInputs = [ python3 git ];
 
     buildPhase = ''
       ${env}/bin/build-env build.sh all

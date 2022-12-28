@@ -1,0 +1,8 @@
+/downloads/
+/keep-downloads
+/gits/
+/x/
+/x[0-9]*/
+out
+result
+result-*

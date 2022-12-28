@@ -4,13 +4,15 @@
   name = "build-env";
   targetPkgs = pkgs: with pkgs;
     [
-      autoPatchelfHook zlib flex bison ncurses pkg-config
-      #ncurses5
+      autoPatchelfHook zlib flex bison pkg-config
+      ncurses5
       gcc binutils
       bc
       dtc lz4
 
-      (python3.withPackages (p: with p; [ pyside ]))
+      #(python3.withPackages (p: with p; [ pyside ]))
+      (python3.withPackages (p: with p; [ qtpy ]))
+      #python3
     ];
   multiPkgs = pkgs: with pkgs;
     [ glibc
