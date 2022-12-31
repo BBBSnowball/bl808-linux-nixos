@@ -1,0 +1,12 @@
+diff -Naur bflb-iot-tool-1.8.1.bak/bflb_iot_tool/libs/bflb_eflash_loader.py bflb-iot-tool-1.8.1/bflb_iot_tool/libs/bflb_eflash_loader.py
+--- bflb-iot-tool-1.8.1.bak/bflb_iot_tool/libs/bflb_eflash_loader.py	2022-12-31 04:11:52.641305604 +0100
++++ bflb-iot-tool-1.8.1/bflb_iot_tool/libs/bflb_eflash_loader.py	2022-12-31 04:12:49.914102581 +0100
+@@ -3556,6 +3556,8 @@
+ 
+ def run():
+     log_file = os.path.join(app_path, "log")
++    if "BFLB_LOG_FILE" in os.environ:
++        log_file = os.environ["BFLB_LOG_FILE"]
+     if not os.path.exists(log_file):
+         os.makedirs(log_file)
+ 

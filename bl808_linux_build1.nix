@@ -197,7 +197,7 @@ let
     # no need to fixup binaries because they are prebuilt but we need fixup for the startup script
     #dontFixup = true;
 
-    postInstall = ''
+    postInstall = (args.postInstall or "") + ''
       mv $out/bin/${pname} $out/bin/.${pname}.unwrapped
       ( echo "#! ${pkgs.bash}/bin/bash"; echo "${chrootenv}/bin/chrootenv ${init-env-for-flash-tools} $out bin/.${pname}.unwrapped \"\$(pwd)\" \"\$@\"" ) >$out/bin/${pname}
       chmod +x $out/bin/${pname}
@@ -212,6 +212,29 @@ let
     pname = "bflb-iot-tool";
     version = "1.8.1";
     src = bflb-iot-tool-pypi;
+
+    postPatch = ''
+      echo 'entry_points["console_scripts"].append("bflb_eflash_loader = libs.bflb_eflash_loader:run")' >>setup.py
+      #echo 'entry_points["console_scripts"].append("bflb_eflash_loader_client = libs.bflb_eflash_loader_client:...")' >>setup.py
+      echo 'entry_points["console_scripts"].append("bflb_eflash_loader_server = libs.bflb_eflash_loader_server:eflash_loader_server_main")' >>setup.py
+      echo 'entry_points["console_scripts"].append("bflb_efuse_boothd_create = libs.bflb_efuse_boothd_create:run")' >>setup.py
+      echo 'entry_points["console_scripts"].append("bflb_img_create = libs.bflb_img_create:run")' >>setup.py
+      #bflb_iot_tool/libs/bflb_img_loader.py:if __name__ == '__main__': -> TODO
+
+      echo 'bflb_eflash_loader = libs.bflb_eflash_loader:run' >>bflb_iot_tool.egg-info/entry_points.txt
+      echo 'bflb_eflash_loader_server = libs.bflb_eflash_loader_server:eflash_loader_server_main' >>bflb_iot_tool.egg-info/entry_points.txt
+      echo 'bflb_efuse_boothd_create = libs.bflb_efuse_boothd_create:run' >>bflb_iot_tool.egg-info/entry_points.txt
+      echo 'bflb_img_create = libs.bflb_img_create:run' >>bflb_iot_tool.egg-info/entry_points.txt
+    '';
+
+    postInstall = ''
+      #ln -s $out/lib/python3.10/site-packages/bflb_iot_tool/libs/bflb_eflash_loader.py $out/bin/bflb_eflash_loader
+      #chmod +x $out/lib/python3.10/site-packages/bflb_iot_tool/libs/bflb_eflash_loader.py
+      ( echo "#! /usr/bin/python3"; echo "from bflb_iot_tool.libs.bflb_eflash_loader import run; run()" ) >>$out/bin/bflb_eflash_loader
+      chmod +x $out/bin/bflb_eflash_loader
+    '';
+
+    patches = [ ./bflb-iot-tool-1.8.1.patch ];
   };
 
   thead-debugserver = pkgs.stdenv.mkDerivation {
@@ -322,7 +345,7 @@ let
   bflb-tools = pkgs.runCommand "bflb-tools" {} ''
     mkdir -p $out/bin
     ln -s ${bflb-mcu-tool}/bin/bflb-mcu-tool $out/bin/
-    ln -s ${bflb-iot-tool}/bin/bflb-iot-tool $out/bin/
+    cp -s ${bflb-iot-tool}/bin/* $out/bin/
     ln -s ${thead-debugserver}/bin/DebugServerConsole $out/bin/
     cp -s ${bflb-lab-dev-cube}/bin/* $out/bin/
   '';
