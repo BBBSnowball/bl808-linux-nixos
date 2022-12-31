@@ -366,6 +366,11 @@ in
       hash = "sha256-k8wm4e7/ynPoY+ZVGnHIoq7o1yCrBKInFsUDL2xqK1w=";
     };
 
+    patches = [
+      ./bl808-linux-dts.patch
+      ./bl808-linux-enable-jtag.patch
+    ];
+
     postPatch = ''
       mkdir toolchain
       ln -s ${prebuiltCmake}        toolchain/cmake

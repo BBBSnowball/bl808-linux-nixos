@@ -1,0 +1,70 @@
+diff --git a/bl_mcu_sdk_bl808/examples/low_load/main.c b/bl_mcu_sdk_bl808/examples/low_load/main.c
+index c8ff60a74..03a1c68cb 100755
+--- a/bl_mcu_sdk_bl808/examples/low_load/main.c
++++ b/bl_mcu_sdk_bl808/examples/low_load/main.c
+@@ -97,6 +97,46 @@ const pmp_config_entry_t pmp_entry_tab[8] = {
+ 
+ #endif
+ 
++
++static void sipeed_bl_sys_enabe_jtag(int cpuid)
++{
++    GLB_GPIO_Cfg_Type gpio_cfg;
++
++    gpio_cfg.drive = 0;
++    gpio_cfg.smtCtrl = 1;
++    gpio_cfg.pullType = GPIO_PULL_NONE;
++
++    gpio_cfg.gpioMode = GPIO_MODE_AF;
++    switch (cpuid) {
++        case 0: {
++            gpio_cfg.gpioFun = GPIO_FUN_JTAG_M0;
++            puts("Enable CPU0 (M0/E907) on PIN0/PIN1/PIN2/PIN3(TCK/TDI/TMS/TDO)\r\n");
++        } break;
++        case 1: {
++            gpio_cfg.gpioFun = GPIO_FUN_JTAG_D0;
++            puts("Enable CPU1 (D0/C906) on PIN0/PIN1/PIN2/PIN3(TCK/TDI/TMS/TDO)\r\n");
++        } break;
++        default: {
++        } break;
++    }
++    gpio_cfg.gpioPin = GLB_GPIO_PIN_0;
++    GLB_GPIO_Init(&gpio_cfg);
++
++    gpio_cfg.gpioPin = GLB_GPIO_PIN_1;
++    GLB_GPIO_Init(&gpio_cfg);
++
++    gpio_cfg.gpioPin = GLB_GPIO_PIN_2;
++    GLB_GPIO_Init(&gpio_cfg);
++
++    gpio_cfg.gpioPin = GLB_GPIO_PIN_3;
++    GLB_GPIO_Init(&gpio_cfg);
++}
++
++static void cmd_jtag_cpu0(char *buf, int len, int argc, char **argv) { sipeed_bl_sys_enabe_jtag(1); }
++
++static void cmd_jtag_m0(char *buf, int len, int argc, char **argv) { sipeed_bl_sys_enabe_jtag(0); }
++
++
+ void linux_load()
+ {
+     MSG("linux load start... \r\n");
+@@ -146,12 +186,18 @@ int main(void)
+     MSG("psram clk init ok!\r\n");
+     // MSG("m0 main! size_t:%d\r\n", sizeof(size_t));
+ 
++    MSG("enable JTAG...\r\n");
++    //cmd_jtag_m0(NULL, 0, 0, NULL);
++    cmd_jtag_cpu0(NULL, 0, 0, NULL);
++    MSG("enable JTAG... done\r\n");
++
+     csi_dcache_disable();
+ #ifdef DUALCORE
+     BL_WR_WORD(IPC_SYNC_ADDR1, IPC_SYNC_FLAG);
+     BL_WR_WORD(IPC_SYNC_ADDR2, IPC_SYNC_FLAG);
+     L1C_DCache_Clean_By_Addr(IPC_SYNC_ADDR1, 8);
+ #endif
++    MSG("waiting forever\r\n");
+     while (1) {
+ #ifdef __riscv_muldiv
+         int dummy;
