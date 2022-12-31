@@ -1,4 +1,9 @@
-# nix-shell ../bl808_linux.nix -A env
+# nix-build bl808_linux_build1.nix -o out
+# nix-build bl808_linux_build1.nix -o result-tools
+# Flash out/low_load_bl808_{d0,m0}.bin using the GUI.
+# Keep chip in bootloader mode and run:
+# result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware out/whole_img_linux.bin  --single
+# Open /dev/ttyUSB0 with baudrate 2000000 and login as root.
 { nixpkgs ? <nixpkgs>, pkgs ? import nixpkgs {} }:
 let
   env = (pkgs.buildFHSUserEnv {
