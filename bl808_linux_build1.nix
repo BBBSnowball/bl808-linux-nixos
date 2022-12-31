@@ -354,12 +354,61 @@ let
     ln -s ${thead-debugserver}/bin/DebugServerConsole $out/bin/
     cp -s ${bflb-lab-dev-cube}/bin/* $out/bin/
   '';
+
+  rootfs = pkgs.stdenv.mkDerivation {
+    name = "rootfs";
+    src = null;
+    dontUnpack = true;
+
+    nativeBuildInputs = with pkgs; [ fakeroot squashfsTools ];
+    busybox = pkgs.pkgsCross.riscv64.pkgsStatic.busybox;
+
+    buildImage = ''
+      set -e
+      mkdir x
+      cd x
+      cp -r ${./rootfs}/* .
+      cp -r $busybox/* .
+      chown -R root:root .
+      mkdir -p ./dev/pts
+      mkdir -p ./etc/hotplug.d
+      mkdir -p ./home/root
+      mkdir -p ./lib
+      #mkdir -p ./mnt/mmc
+      #mkdir -p ./mnt/mmc/mmcblk0p1
+      #mkdir -p ./mnt/mtd
+      #mkdir -p ./mnt/usb/sda
+      #mkdir -p ./mnt/usb/sda1
+      mkdir -p ./proc
+      mkdir -p ./share
+      mkdir -p ./sys
+      mkdir -p ./tmp
+      mkdir -p ./usr/lib
+      mkdir -p ./usr/share
+      mkdir -p ./var/lib
+      mkdir -p ./var/volatile
+
+      mknod ./dev/console c 5 1
+      mknod ./dev/null    c 1 3
+
+      mksquashfs . ../squashfs_test.img -comp gzip  #TODO lz4
+    '';
+    passAsFile = [ "buildImage" ];
+
+    buildPhase = ''
+      fakeroot bash $buildImagePath
+    '';
+
+    installPhase = ''
+      cp squashfs_test.img $out
+    '';
+  };
 in
   with pkgs;
   stdenv.mkDerivation {
     passthru = downloads // {
       inherit keep-downloads
-        bflb-mcu-tool bflb-iot-tool bflb-tools thead-debugserver;
+        bflb-mcu-tool bflb-iot-tool bflb-tools thead-debugserver rootfs;
     };
 
     name = "bl808_linux";
@@ -376,6 +425,8 @@ in
       ./bl808-linux-enable-jtag.patch
     ];
 
+    inherit rootfs;
+
     postPatch = ''
       mkdir toolchain
       ln -s ${prebuiltCmake}        toolchain/cmake
@@ -391,6 +442,9 @@ in
       ${env}/bin/build-env -c "toolchain/linux_toolchain/bin/riscv64-unknown-linux-gnu-gcc --version"
 
       bash ./switch_to_m1sdock.sh
+
+      rm out/squashfs_test.img
+      cp $rootfs out/squashfs_test.img
     '';
 
     nativeBuildInputs = [ python3 git ];

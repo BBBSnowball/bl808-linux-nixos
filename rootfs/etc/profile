@@ -1,0 +1,29 @@
+#!/bin/sh
+#/etc/profile:system-wide .profile file for the Bourne shell
+
+echo "Processing /etc/profile ... "
+# no-op
+
+# Set search library path
+echo "Set search library path in /etc/profile"
+export LD_LIBRARY_PATH=/lib:/usr/lib
+
+# host name
+HOSTNAME=`/bin/hostname`
+export HOSTNAME
+
+# Set user path
+echo "Set user path in /etc/profile"
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH
+
+# alias
+alias ll="ls -al"
+
+# Prompt
+USER="`id -un`"
+LOGNAME=$USER
+PS1='[\u@\h \W]\$'
+
+echo "Welcome to Linux"
+

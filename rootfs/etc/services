@@ -1,0 +1,12 @@
+tcpmux           1/tcp
+tcpmux           1/udp
+ftp-data         20/tcp
+ftp              21/tcp
+ssh              22/tcp
+ssh              22/udp
+telnet           23/tcp
+nameserver       42/tcp     name
+syslog           514/udp
+ntp              123/tcp
+ntp              123/udp
+

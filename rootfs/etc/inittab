@@ -1,0 +1,16 @@
+::sysinit:/etc/init.d/rcS
+
+# The following 2 does not need login
+#::respawn:-/bin/sh
+#::respawn:/sbin/getty 2000000 ttyS0 vt100 -n -l /bin/sh
+#ttyS0::respawn:/sbin/getty -L ttyS0 0 vt100 # GENERIC_SERIAL
+
+# login needed
+#::respawn:/sbin/getty 2000000 ttyS0 vt100
+ttyS0::respawn:/sbin/getty -L ttyS0 0 vt100 # GENERIC_SERIAL
+
+::restart:/sbin/init
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::shutdown:/sbin/swapoff -a
+

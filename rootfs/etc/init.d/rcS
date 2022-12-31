@@ -1,0 +1,38 @@
+#!/bin/sh
+echo "********************************"
+echo " Exec rcS "
+echo "********************************"
+
+runlevel=S
+export runlevel
+
+# Host name
+/bin/hostname Linux
+
+# Mount /proc if not
+[ -d "/proc/1" ] || mount /proc
+
+echo "********mount all********"
+/bin/mount -av
+
+mkdir /dev/pts
+mount -t devpts devpts /dev/pts
+
+
+# Read the busybox docs: mdev.txt
+#echo "********Starting mdev********"
+echo "This may take some time ..."
+/bin/mount -t sysfs sysfs /sys
+#/bin/echo /sbin/mdev > /proc/sys/kernel/hotplug
+#mdev -s
+
+# When mdev is mounted, /sys can be umounted
+#/bin/umount /sys
+
+# Start local services
+/etc/init.d/rc.local
+
+echo "********************************"
+echo "********************************"
+
+
