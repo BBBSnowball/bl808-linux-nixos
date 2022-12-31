@@ -1,0 +1,30 @@
+#! /bin/sh
+on () {
+  devmem 0x200008E4 32 0x00400b42  # low / on
+}
+off () {
+  devmem 0x200008E4 32 0x01400b42  # high / off
+}
+
+case "$1" in
+  1|on)
+    on
+    ;;
+  0|off)
+    off
+    ;;
+  blink)
+    for i in `seq 10` ; do
+      on
+      sleep 0.1
+      off
+      sleep 0.4
+    done
+    ;;
+  *)
+    echo "Usage: $0 on|off|blink"
+    echo ""
+    echo "This controls the white LED on a Sipeed M1s dock board."
+    exit 1
+    ;;
+esac
