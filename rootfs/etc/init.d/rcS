@@ -12,22 +12,21 @@ export runlevel
 # Mount /proc if not
 [ -d "/proc/1" ] || mount /proc
 
+mkdir -p /dev/pts /dev/shm
+
 echo "********mount all********"
 /bin/mount -av
 
-mkdir /dev/pts
-mount -t devpts devpts /dev/pts
+# /dev was mounted before but with a rather large size so let's adjust that.
+mount -t tmpfs tmpfs /dev -o remount,size=512k
 
-
-# Read the busybox docs: mdev.txt
-#echo "********Starting mdev********"
-echo "This may take some time ..."
-/bin/mount -t sysfs sysfs /sys
-#/bin/echo /sbin/mdev > /proc/sys/kernel/hotplug
-#mdev -s
-
-# When mdev is mounted, /sys can be umounted
-#/bin/umount /sys
+if false; then
+  # Read the busybox docs: mdev.txt
+  echo "********Starting mdev********"
+  echo "This may take some time ..."
+  /bin/echo /sbin/mdev > /proc/sys/kernel/hotplug
+  mdev -s
+fi
 
 # Start local services
 /etc/init.d/rc.local
@@ -35,4 +34,4 @@ echo "This may take some time ..."
 echo "********************************"
 echo "********************************"
 
-
+echo "Login as 'root'."

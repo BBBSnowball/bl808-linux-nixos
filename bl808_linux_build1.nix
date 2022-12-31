@@ -375,13 +375,10 @@ let
       chown -R root:root .
       mkdir -p ./dev/pts
       mkdir -p ./etc/hotplug.d
-      mkdir -p ./home/root
+      mkdir -p ./root
+      mkdir -p ./home
       mkdir -p ./lib
-      #mkdir -p ./mnt/mmc
-      #mkdir -p ./mnt/mmc/mmcblk0p1
-      #mkdir -p ./mnt/mtd
-      #mkdir -p ./mnt/usb/sda
-      #mkdir -p ./mnt/usb/sda1
+      mkdir -p ./mnt/{mmc,mtd}
       mkdir -p ./proc
       mkdir -p ./share
       mkdir -p ./sys
