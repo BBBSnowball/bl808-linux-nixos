@@ -9,9 +9,10 @@
       gcc binutils
       bc
       dtc lz4
+      libGL xorg.libxcb
 
-      #(python3.withPackages (p: with p; [ pyside ]))
-      (python3.withPackages (p: with p; [ qtpy ]))
+      #(python3.withPackages (p: with p; [ pyside2 ]))
+      #(python3.withPackages (p: with p; [ qtpy ]))
       #python3
     ];
   multiPkgs = pkgs: with pkgs;
