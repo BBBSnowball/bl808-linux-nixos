@@ -1,6 +1,6 @@
-# nix build . -o out
-# nix build .#bflb-tools -o result-tools
-# nix build .#keep-downloads -o keep-downloads
+# nix build -L . -o out
+# nix build -L .#bflb-tools -o result-tools
+# nix build -L .#keep-downloads -o keep-downloads
 # Flash out/low_load_bl808_{d0,m0}.bin using the GUI:
 #   nix run .#BLDevCube
 #   Step 2 in keep-downloads/prebuilt-linux/steps.md but use the files in ./out
@@ -37,6 +37,7 @@
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools-all.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
+      // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-2.nix { }
       // {
         inherit nixpkgs;  # used to import chrootenv in bflb-tools.nix
         thead-debugserver = final.callPackage ./pkgs/thead-debugserver.nix { };
@@ -76,7 +77,8 @@
 
         bl808-rootfs
         prebuilt-linux
-        bl808-linux-1;
+        bl808-linux-1
+        bl808-linux-2;
 
       default = packages.bl808-linux-1;
 
