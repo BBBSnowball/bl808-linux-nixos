@@ -16,7 +16,6 @@
 
   outputs = { self, nixpkgs, flake-utils, ... }:
   flake-utils.lib.eachDefaultSystem (system: let
-    pkgs = nixpkgs.legacyPackages.${system};
     callPackageIfFunction = callPackage: x: extra:
       with builtins;
       let
@@ -24,21 +23,32 @@
         x'' = if isFunction x' then callPackage x' extra else x';
         recurse = x: callPackageIfFunction callPackage x extra;
       in
-      if isAttrs x'' then mapAttrs (k: recurse) x''
+      if isAttrs x'' && !(x'' ? outPath) then mapAttrs (k: recurse) x''
       else if isList x'' then map recurse x''
       else x'';
     overlay = final: prev:
-      callPackageIfFunction final.callPackage ./pkgs/prebuilt-toolchain.nix {}
-      // callPackageIfFunction pkgs.callPackage ./pkgs/bflb-tools.nix { inherit nixpkgs; }  #FIXME using pkgs here is not right!
+      callPackageIfFunction final.callPackage ./pkgs/prebuilt-toolchain.nix { }
+      // callPackageIfFunction final.callPackage ./pkgs/bflb-tools.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools-all.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
       // {
+        inherit nixpkgs;  # used to import chrootenv in bflb-tools.nix
         thead-debugserver = final.callPackage ./pkgs/thead-debugserver.nix { };
         bflb-lab-dev-cube = final.callPackage ./pkgs/bflb-lab-dev-cube.nix { };
         bl808-rootfs = final.callPackage ./pkgs/bl808-rootfs.nix { };
         prebuilt-linux = final.callPackage ./pkgs/prebuilt-linux.nix { };
       };
     all-pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
+  in let
+    # We define this in a separate `let` so we don't accidentally use it in the overlay.
+    pkgs = nixpkgs.legacyPackages.${system};
+
+    dummy = derivation {
+      inherit system;
+      name = "dummy (contains all packages, for debugging)";
+      builder = pkgs.bash;
+      args = ["-c" "echo \"This derivation is not meant to be built.\"; exit 1" ];
+    };
   in rec {
     overlays.default = overlay;
 
@@ -76,6 +86,9 @@
             prebuiltGccLinux;
       };
       in pkgs.linkFarm "bl808_downloads" downloads // { inherit downloads; };
+
+      # make all packages available for debugging (and dummy is to make it a valid derivation with as few attributes of its own as possible)
+      all = all-pkgs // dummy;
 
       bl808-dev-env = pkgs.buildFHSUserEnv {
         name = "build-env";

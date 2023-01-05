@@ -1,17 +1,21 @@
-{ nixpkgs ? <nixpkgs>, callPackage, python3Packages, gnused, buildFHSUserEnv, writeShellScript, coreutils, xorg, bash }:
-rec {
-  chrootenv = callPackage "${nixpkgs}/pkgs/build-support/build-fhs-userenv/chrootenv" {};
+let
+  ignoreForCallPackage = go: { outPath = "ignore for further callPackage"; inherit go; };
+in
+{
+  chrootenv = { nixpkgs, callPackage }: callPackage "${nixpkgs}/pkgs/build-support/build-fhs-userenv/chrootenv" {};
 
-  bflb-flash-env = (buildFHSUserEnv {
+  bflb-flash-env = { buildFHSUserEnv }:
+  buildFHSUserEnv {
     name = "flash-env";
     targetPkgs = pkgs: with pkgs;
       [
         zlib
       ];
     runScript = "bash";
-  });
+  };
 
-  init-env-for-flash-tools = writeShellScript "init-env-for-flash-tools" ''
+  init-env-for-flash-tools = { writeShellScript, bflb-flash-env, xorg, gnused, coreutils }:
+  writeShellScript "init-env-for-flash-tools" ''
     for i in ${bflb-flash-env}/* /host/*; do
       path="/''${i##*/}"
       [ -e "$path" ] || ${coreutils}/bin/ln -s "$i" "$path"
@@ -57,7 +61,9 @@ rec {
     fi
   '';
 
-  bflb-crypto-plus = python3Packages.buildPythonPackage rec {
+  #NOTE We should use packageOverrides here but this is not so easy with the current structure of this flake.
+  # see https://nixos.wiki/wiki/Overlays#Python_Packages_Overlay
+  bflb-crypto-plus = { python3Packages }: python3Packages.buildPythonPackage rec {
     pname = "bflb-crypto-plus";
     version = "1.0";
     src = python3Packages.fetchPypi {
@@ -69,7 +75,7 @@ rec {
       ecdsa pycryptodome setuptools
     ];
   };
-  pycklink = python3Packages.buildPythonPackage rec {
+  pycklink = { python3Packages }: python3Packages.buildPythonPackage rec {
     pname = "pycklink";
     version = "0.1.1";
     src = python3Packages.fetchPypi {
@@ -77,7 +83,7 @@ rec {
       hash = "sha256-Ub3a72V15Fkeyo7RkbjMaj6faUrcC8RkRRSbNUuq/ks=";
     };
   };
-  portalocker_2_0 = with python3Packages; buildPythonPackage rec {
+  portalocker_2_0 = { python3Packages }: with python3Packages; buildPythonPackage rec {
     pname = "portalocker";
     version = "2.0.0";
     format = "setuptools";
@@ -93,7 +99,9 @@ rec {
 
     doCheck = false;
   };
-  bflb-common = { pname, ... }@args: python3Packages.buildPythonApplication (args // {
+
+  bflb-common = { python3Packages, chrootenv, bash, init-env-for-flash-tools,
+  bflb-crypto-plus, pycklink, portalocker_2_0 }: ignoreForCallPackage ({ pname, ... }@args: python3Packages.buildPythonApplication (args // {
     # This doesn't seem to work for us.
     nativeBuildInputs = [ python3Packages.pythonRelaxDepsHook ];
     pythonRelaxDeps = [ "pycryptodome" "pylink-square" "portalocker" ];
@@ -119,8 +127,8 @@ rec {
       ( echo "#! ${bash}/bin/bash"; echo "${chrootenv}/bin/chrootenv ${init-env-for-flash-tools} $out bin/.${pname}.unwrapped \"\$(pwd)\" \"\$@\"" ) >$out/bin/${pname}
       chmod +x $out/bin/${pname}
     '';
-  });
-  bflb-mcu-tool = bflb-common rec {
+  }));
+  bflb-mcu-tool = { python3Packages, bflb-common }: bflb-common.go rec {
     pname = "bflb-mcu-tool";
     version = "1.8.1";
     src = python3Packages.fetchPypi {
@@ -128,7 +136,7 @@ rec {
       hash = "sha256-bY5z6bXV2BAd38kjCHCfFd8H+ZXIFFfs0EC+i4mxG4s=";
     };
   };
-  bflb-iot-tool = bflb-common rec {
+  bflb-iot-tool = { python3Packages, bflb-common }: bflb-common.go rec {
     pname = "bflb-iot-tool";
     version = "1.8.1";
     src = python3Packages.fetchPypi {
