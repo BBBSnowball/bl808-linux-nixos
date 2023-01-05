@@ -1,0 +1,105 @@
+# nix build . -o out
+# nix build .#bflb-tools -o result-tools
+# nix build .#keep-downloads -o keep-downloads
+# Flash out/low_load_bl808_{d0,m0}.bin using the GUI:
+#   result-tools/bin/BLDevCube
+#   Step 2 in keep-downloads/prebuilt-linux/steps.md
+# Keep chip in bootloader mode and run:
+# result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware out/whole_img_linux.bin  --single
+# Open /dev/ttyUSB0 with baudrate 2000000 and login as root.
+#
+# Update only the rootfs:
+# nix build .#bl808-rootfs -o result-rootfs && ./result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0x552000 --firmware result-rootfs --single
+{
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+  inputs.flake-utils.url = "github:numtide/flake-utils";
+
+  outputs = { self, nixpkgs, flake-utils, ... }:
+  flake-utils.lib.eachDefaultSystem (system: let
+    pkgs = nixpkgs.legacyPackages.${system};
+    callPackageIfFunction = callPackage: x: extra:
+      with builtins;
+      let
+        x' = if isPath x then import x else x;
+        x'' = if isFunction x' then callPackage x' extra else x';
+        recurse = x: callPackageIfFunction callPackage x extra;
+      in
+      if isAttrs x'' then mapAttrs (k: recurse) x''
+      else if isList x'' then map recurse x''
+      else x'';
+    overlay = final: prev:
+      callPackageIfFunction final.callPackage ./pkgs/prebuilt-toolchain.nix {}
+      // callPackageIfFunction pkgs.callPackage ./pkgs/bflb-tools.nix { inherit nixpkgs; }  #FIXME using pkgs here is not right!
+      // callPackageIfFunction final.callPackage ./pkgs/bflb-lab-dev-cube.nix { }
+      // callPackageIfFunction final.callPackage ./pkgs/thead-debugserver.nix { }
+      // callPackageIfFunction final.callPackage ./pkgs/bflb-tools-all.nix { }
+      // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
+      // {
+        bl808-rootfs = final.callPackage ./pkgs/bl808-rootfs.nix { };
+        prebuilt-linux = final.callPackage ./pkgs/prebuilt-linux.nix { };
+      };
+    all-pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
+  in rec {
+    overlays.default = overlay;
+
+    packages = {
+      inherit (all-pkgs)
+        prebuiltCmake
+        prebuiltGccBaremetal
+        prebuiltGccLinux
+
+        chrootenv
+        #bflb-crypto-plus
+        #pycklink
+        #portalocker_2_0
+        bflb-mcu-tool
+        bflb-iot-tool
+        bflb-lab-dev-cube
+        thead-debugserver
+        bflb-tools
+
+        bl808-rootfs
+        prebuilt-linux
+        bl808-linux-1;
+
+      default = packages.bl808-linux-1;
+
+      keep-downloads = with all-pkgs; let
+        downloads = builtins.mapAttrs (k: v: v.src) {
+          inherit bflb-iot-tool bflb-mcu-tool pycklink bflb-crypto-plus
+            bflb-lab-dev-cube thead-debugserver;
+        } // {
+          inherit
+            prebuilt-linux
+            prebuiltCmake
+            prebuiltGccBaremetal
+            prebuiltGccLinux;
+      };
+      in pkgs.linkFarm "bl808_downloads" downloads // { inherit downloads; };
+
+      bl808-dev-env = pkgs.buildFHSUserEnv {
+        name = "build-env";
+        targetPkgs = pkgs: with pkgs; [
+          autoPatchelfHook zlib flex bison pkg-config
+          ncurses5
+          gcc binutils
+          bc
+          dtc lz4
+          libGL xorg.libxcb
+    
+          #(python3.withPackages (p: with p; [ pyside2 ]))
+          #(python3.withPackages (p: with p; [ qtpy ]))
+          #python3
+        ];
+        multiPkgs = pkgs: with pkgs; [
+          glibc
+          xorg.libX11
+        ];
+        runScript = "bash";
+        extraOutputsToInstall = [ "dev" ];
+      };
+    };
+
+    devShells.default = packages.bl808-dev-env.env;
+  });
+}
