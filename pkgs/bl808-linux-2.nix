@@ -90,20 +90,22 @@ in {
     '';
   });
 
-  bl808-linux-2-dtb = common ({ env, ... }: {
+  bl808-linux-2-dtb = { stdenv, dtc }:
+  stdenv.mkDerivation {
     name = "bl808-linux-2-dtb";
-    patches = [
-      ../patches/bl808-linux-dts.patch
-    ];
+    src = ../dts/hw808c.dts;
+    dontUnpack = true;
+
+    nativeBuildInputs = [ dtc ];
 
     buildPhase = ''
-      ${env}/bin/build-env build.sh dtb
+      dtc -I dts -O dtb -o hw.dtb.5M $src
     '';
     installPhase = ''
       mkdir $out
-      cp out/hw.dtb.5M $out/
+      cp hw.dtb.5M $out/
     '';
-  });
+  };
 
   bl808-linux-2-kernel = common ({ env, ... }: {
     name = "bl808-linux-2-linux";
