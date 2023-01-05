@@ -72,6 +72,20 @@
 			status = "okay";
 		};
 
+                glb_uio@20000000 {
+                  compatible = "generic-uio";
+                  reg = <0x0 0x20000000 0x0 0x2000>;
+                  uio,number-of-dynamic-regions = <1>;
+                  uio,dynamic-regions-sizes = <0x2000>;
+                };
+
+                bootrom_uio@90000000 {
+                  compatible = "generic-uio";
+                  reg = <0x0 0x90000000 0x0 0x20000>;
+                  uio,number-of-dynamic-regions = <1>;
+                  uio,dynamic-regions-sizes = <0x20000>;
+                };
+
 		xip_flash@58500000 {
 				compatible = "mtd-rom";
 				reg = <0x0 0x58500000 0x0 0x400000>;
