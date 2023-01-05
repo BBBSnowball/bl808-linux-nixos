@@ -39,6 +39,7 @@
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools-all.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-2.nix { }
+      // callPackageIfFunction final.callPackage (import ./pkgs/xuantie-gnu-toolchain.nix { inherit (nixpkgs) lib; }) { }
       // {
         inherit nixpkgs;  # used to import chrootenv in bflb-tools.nix
         thead-debugserver = final.callPackage ./pkgs/thead-debugserver.nix { };
@@ -164,6 +165,10 @@
       bl808-linux-1-flash-rootfs = mkAppWithArgs {
         drv = packages.bflb-iot-tool;
         args = defaultFlashArgs ++ [ "--addr" "0x552000" "--firmware" packages.bl808-rootfs "--single" ];
+      };
+      bl808-linux-2-flash-img = mkAppWithArgs {
+        drv = packages.bflb-iot-tool;
+        args = defaultFlashArgs ++ [ "--addr" "0xD2000" "--firmware" "${packages.bl808-linux-2}/whole_img_linux.bin" "--single" ];
       };
     };
   });

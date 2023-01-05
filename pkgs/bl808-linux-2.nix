@@ -41,16 +41,38 @@ in {
     extraOutputsToInstall = [ "dev" ];
   };
 
-  bl808-linux-2-opensbi = common ({ env, ... }: {
+  bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, prebuiltGccLinux, bl808-linux-2-build-env }:
+  stdenv.mkDerivation {
     name = "bl808-linux-2-opensbi";
-    buildPhase = ''
-      ${env}/bin/build-env build.sh opensbi
+
+    src = fetchFromGitHub {
+      owner = "riscv-software-src";
+      repo = "opensbi";
+      rev = "v0.6";
+      hash = "sha256-h04JfJ7vltEMgOg0fTpycPQdlHiCOGFPMfY7oF67Pok=";
+    };
+
+    patches = [
+      ../patches/bl808-opensbi-01-bl808-support.patch
+      ../patches/bl808-opensbi-02-m1sdock_uart_pin_def.patch
+    ];
+
+    buildScript = ''
+      make PLATFORM=thead/c910 CROSS_COMPILE=${prebuiltGccLinux}/bin/riscv64-unknown-linux-gnu- -j$(nproc) \
+        FW_TEXT_START=0x3EFF0000 \
+        FW_JUMP_ADDR=0x50000000
     '';
+    passAsFile = [ "buildScript" ];
+
+    buildPhase = ''
+      ${bl808-linux-2-build-env}/bin/build-env $buildScriptPath
+    '';
+
     installPhase = ''
       mkdir $out
-      cp out/fw_jump.bin $out/
+      cp build/platform/thead/c910/firmware/fw_jump.bin $out/
     '';
-  });
+  };
 
   bl808-linux-2-low-load = common ({ env, ... }: {
     name = "bl808-linux-2-low-load";

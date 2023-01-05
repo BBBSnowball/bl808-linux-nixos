@@ -1,0 +1,17 @@
+diff --git a/platform/thead/c910/platform.c b/platform/thead/c910/platform.c
+index 15d6dc0e5..10beaf5e4 100644
+--- a/platform/thead/c910/platform.c
++++ b/platform/thead/c910/platform.c
+@@ -87,8 +87,10 @@ static int c910_early_init(bool cold_boot)
+ 		writel(tmp, (void *)(0x30007000));
+ 		/* pinmux */
+ 		tmp = readl((void *)(0x200008e4));
+-		writel(0x00401502, (void *)0x200008e4); //IO8, TXD
+-		writel(0x00401517, (void *)0x200008d8); //IO5, RXD
++		// writel(0x00401502, (void *)0x200008e4); //IO8, TXD
++		// writel(0x00401517, (void *)0x200008d8); //IO5, RXD
++		writel(0x00401502, (void *)0x20000904); //IO16, TXD
++		writel(0x00401517, (void *)0x20000908); //IO17, RXD
+ 		//UART_IntMask(UART_DBG_ID, UART_INT_ALL, MASK);
+ 		tmp = readl((void *)(BFLB_CONSOLE_BASE + UART_INT_MASK_OFFSET));
+ 		tmp |= 0xfff;
