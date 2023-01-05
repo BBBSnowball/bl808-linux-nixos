@@ -23,6 +23,7 @@
   
     callPackageIfFunction = callPackage: x: extra:
       with builtins;
+      with nixpkgs.lib;  # after builtins because isFunction must come from here
       let
         x' = if isPath x then import x else x;
         x'' = if isFunction x' then callPackage x' extra else x';
