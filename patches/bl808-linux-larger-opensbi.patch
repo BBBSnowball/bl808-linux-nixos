@@ -1,0 +1,39 @@
+From da42b697b5d7f5f7c4138e45360247ac2ca3aa30 Mon Sep 17 00:00:00 2001
+From: Benjamin Koch <bbbsnowball@gmail.com>
+Date: Thu, 5 Jan 2023 16:04:23 +0100
+Subject: [PATCH] support larger SBI
+
+---
+ bl_mcu_sdk_bl808/examples/low_load/bl808_flash_d0.ld | 2 +-
+ bl_mcu_sdk_bl808/examples/low_load/main.c            | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bl_mcu_sdk_bl808/examples/low_load/bl808_flash_d0.ld b/bl_mcu_sdk_bl808/examples/low_load/bl808_flash_d0.ld
+index f9e91372b..47d91e5e1 100755
+--- a/bl_mcu_sdk_bl808/examples/low_load/bl808_flash_d0.ld
++++ b/bl_mcu_sdk_bl808/examples/low_load/bl808_flash_d0.ld
+@@ -23,7 +23,7 @@ HeapMinSize  = 0x1000; /*  4KB */
+ MEMORY
+ {
+     xip_memory  (rx)  : ORIGIN = 0x58000000, LENGTH = 1M
+-    itcm_memory (rx)  : ORIGIN = 0x3effc000, LENGTH = 17K
++    itcm_memory (rx)  : ORIGIN = 0x3effc800, LENGTH = 14K
+     dtcm_memory (rx)  : ORIGIN = 0x3f000400, LENGTH = 31K
+     ram_memory  (!rx) : ORIGIN = 0x3ef80000, LENGTH = 32K
+     xram_memory (!rx) : ORIGIN = 0x40004000, LENGTH = 16K
+diff --git a/bl_mcu_sdk_bl808/examples/low_load/main.c b/bl_mcu_sdk_bl808/examples/low_load/main.c
+index c8ff60a74..aa4131699 100755
+--- a/bl_mcu_sdk_bl808/examples/low_load/main.c
++++ b/bl_mcu_sdk_bl808/examples/low_load/main.c
+@@ -128,7 +128,7 @@ void linux_load()
+     /* Copy opensbi code */
+     pSrc = (uint32_t *)OPENSBI_SRC_ADDR;
+     pDest = (uint32_t *)OPENSBI_DST_ADDR;
+-    memcpy((void *)pDest, (void *)pSrc, 0xc000);
++    memcpy((void *)pDest, (void *)pSrc, 0xc800);
+     MSG("opensbi load done!\r\n");
+ 
+     csi_dcache_clean_invalid();
+-- 
+2.38.1
+

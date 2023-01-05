@@ -1,0 +1,71 @@
+From 1f7fd9c6af5f0de911571ec28e520a3962be6ef1 Mon Sep 17 00:00:00 2001
+From: Benjamin Koch <bbbsnowball@gmail.com>
+Date: Thu, 5 Jan 2023 13:44:19 +0100
+Subject: [PATCH] debug
+
+---
+ firmware/fw_base.S             | 8 ++++++++
+ lib/sbi/sbi_domain.c           | 2 +-
+ platform/thead/c910/platform.c | 7 +++++++
+ 3 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/firmware/fw_base.S b/firmware/fw_base.S
+index ab33e11..b7c1efd 100644
+--- a/firmware/fw_base.S
++++ b/firmware/fw_base.S
+@@ -46,6 +46,14 @@
+ 	.globl _start
+ 	.globl _start_warm
+ _start:
++	1: j 1b
++        nop
++        nop
++        nop
++        nop
++        nop
++        nop
++        nop
+ 	/* Find preferred boot HART id */
+ 	MOV_3R	s0, a0, s1, a1, s2, a2
+ 	call	fw_boot_hart
+diff --git a/lib/sbi/sbi_domain.c b/lib/sbi/sbi_domain.c
+index 195c941..22025f4 100644
+--- a/lib/sbi/sbi_domain.c
++++ b/lib/sbi/sbi_domain.c
+@@ -397,7 +397,7 @@ int sbi_domain_register(struct sbi_domain *dom,
+ 
+ 	/* Sanitize discovered domain */
+ 	rc = sanitize_domain(plat, dom);
+-	if (rc) {
++	if (rc && 0) {
+ 		sbi_printf("%s: sanity checks failed for"
+ 			   " %s (error %d)\n", __func__,
+ 			   dom->name, rc);
+diff --git a/platform/thead/c910/platform.c b/platform/thead/c910/platform.c
+index 4ebc08f..63c9243 100644
+--- a/platform/thead/c910/platform.c
++++ b/platform/thead/c910/platform.c
+@@ -44,6 +44,8 @@ static void c910_delegate_traps()
+ 	csr_write(CSR_MEDELEG, exceptions);
+ }
+ 
++static void c910_uart_putc(char ch);
++
+ static int c910_early_init(bool cold_boot)
+ {
+ 	if (cold_boot) {
+@@ -152,6 +154,11 @@ static int c910_early_init(bool cold_boot)
+ 		tmp |= UART_CR_URX_EN_MSK;
+ 		writel(tmp,
+ 		       (void *)(BFLB_CONSOLE_BASE + UART_URX_CONFIG_OFFSET));
++
++                c910_uart_putc('A');
++                c910_uart_putc('B');
++                c910_uart_putc('\r');
++                c910_uart_putc('\n');
+ #endif
+ 	}
+ 
+-- 
+2.38.1
+

@@ -48,19 +48,22 @@ in {
     src = fetchFromGitHub {
       owner = "riscv-software-src";
       repo = "opensbi";
-      rev = "v0.6";
-      hash = "sha256-h04JfJ7vltEMgOg0fTpycPQdlHiCOGFPMfY7oF67Pok=";
+      rev = "v0.9";
+      hash = "sha256-W39R1RHsIM3yNwW/eukO+mPd9joPZLw+/XIJoH8agN8=";
     };
 
     patches = [
-      ../patches/bl808-opensbi-01-bl808-support.patch
+      ../patches/bl808-opensbi-01-bl808-support-v0.9.patch
       ../patches/bl808-opensbi-02-m1sdock_uart_pin_def.patch
+      #../patches/bl808-opensbi-03-debug.patch
     ];
 
     buildScript = ''
+      grep 0x00401502 platform/thead/c910/platform.c
       make PLATFORM=thead/c910 CROSS_COMPILE=${prebuiltGccLinux}/bin/riscv64-unknown-linux-gnu- -j$(nproc) \
         FW_TEXT_START=0x3EFF0000 \
         FW_JUMP_ADDR=0x50000000
+      ${prebuiltGccLinux}/bin/riscv64-unknown-linux-gnu-objdump -dx build/platform/thead/c910/firmware/fw_jump.elf >build/platform/thead/c910/firmware/fw_jump.lst
     '';
     passAsFile = [ "buildScript" ];
 
@@ -70,7 +73,7 @@ in {
 
     installPhase = ''
       mkdir $out
-      cp build/platform/thead/c910/firmware/fw_jump.bin $out/
+      cp build/platform/thead/c910/firmware/fw_jump.* $out/
     '';
   };
 
@@ -78,6 +81,7 @@ in {
     name = "bl808-linux-2-low-load";
     patches = [
       ../patches/bl808-linux-enable-jtag.patch
+      ../patches/bl808-linux-larger-opensbi.patch
     ];
 
     buildPhase = ''
