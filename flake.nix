@@ -19,14 +19,7 @@
     #defaultSystems = flake-utils.lib.defaultSystems;
     # -> no darwin, for now, because it doesn't support chrootenv (and libstdcxx5)
     defaultSystems = ["aarch64-linux" "x86_64-linux"];
-
-    # `nix flake check` is quite conservative when checking the arguments of overlays.
-    fixOverlayForFlakeCheck = x: x // {
-      overlays = builtins.mapAttrs (k: v: final: prev: v final prev) (x.overlays or {});
-    };
-  in
-  fixOverlayForFlakeCheck (
-  flake-utils.lib.eachSystem defaultSystems (system: let
+  
     callPackageIfFunction = callPackage: x: extra:
       with builtins;
       let
@@ -37,6 +30,7 @@
       if isAttrs x'' && !(x'' ? outPath) then mapAttrs (k: recurse) x''
       else if isList x'' then map recurse x''
       else x'';
+  
     overlay = final: prev:
       callPackageIfFunction final.callPackage ./pkgs/prebuilt-toolchain.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools.nix { }
@@ -49,9 +43,11 @@
         bl808-rootfs = final.callPackage ./pkgs/bl808-rootfs.nix { };
         prebuilt-linux = final.callPackage ./pkgs/prebuilt-linux.nix { };
       };
+  in {
+    inherit overlay;
+    overlays.default = overlay;
+  } // flake-utils.lib.eachSystem defaultSystems (system: let
     all-pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
-  in let
-    # We define this in a separate `let` so we don't accidentally use it in the overlay.
     pkgs = nixpkgs.legacyPackages.${system};
 
     dummy = derivation {
@@ -61,8 +57,6 @@
       args = ["-c" "echo \"This derivation is not meant to be built.\"; exit 1" ];
     };
   in rec {
-    overlays.default = overlay;
-
     packages = {
       inherit (all-pkgs)
         prebuiltCmake
@@ -132,5 +126,5 @@
     };
 
     devShells.default = packages.bl808-dev-env.env;
-  }));
+  });
 }
