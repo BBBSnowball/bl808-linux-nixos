@@ -2,14 +2,15 @@
 # nix build .#bflb-tools -o result-tools
 # nix build .#keep-downloads -o keep-downloads
 # Flash out/low_load_bl808_{d0,m0}.bin using the GUI:
-#   result-tools/bin/BLDevCube
-#   Step 2 in keep-downloads/prebuilt-linux/steps.md
+#   nix run .#BLDevCube
+#   Step 2 in keep-downloads/prebuilt-linux/steps.md but use the files in ./out
 # Keep chip in bootloader mode and run:
-# result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware out/whole_img_linux.bin  --single
-# Open /dev/ttyUSB0 with baudrate 2000000 and login as root.
+#   nix run .#bl808-linux-1-flash-img --port /dev/ttyUSB1
+#   (or: result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware out/whole_img_linux.bin  --single)
+# Open /dev/ttyUSB0 with baudrate 2000000, press reset button, wait for login prompt and login as root.
 #
 # Update only the rootfs:
-# nix build .#bl808-rootfs -o result-rootfs && ./result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0x552000 --firmware result-rootfs --single
+#   nix run .#bl808-linux-1-flash-rootfs
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
@@ -44,7 +45,7 @@
         prebuilt-linux = final.callPackage ./pkgs/prebuilt-linux.nix { };
       };
   in {
-    inherit overlay;
+    #inherit overlay;  # deprecated
     overlays.default = overlay;
   } // flake-utils.lib.eachSystem defaultSystems (system: let
     all-pkgs = import nixpkgs { inherit system; overlays = [ overlay ]; };
@@ -125,6 +126,42 @@
         bl808-linux-1;
     };
 
-    devShells.default = packages.bl808-dev-env.env;
+    devShells = {
+      default = packages.bl808-dev-env.env;
+      #TODO maybe add a shell with bflb-tools?
+    };
+
+    apps = let
+      # similar to flake-utils's mkApp but we support adding extra arguments
+      mkAppWithArgs = { drv, name ? drv.pname or drv.name, exePath ? drv.passthru.exePath or "/bin/${name}", args ? [] }:
+      let
+        exe = "${drv}${exePath}";
+        program = if args == [] then exe else (pkgs.writeShellScript name ''
+          echo "+" ${pkgs.lib.escapeShellArgs ([exe] ++ args)} "$@"
+          exec ${pkgs.lib.escapeShellArgs ([exe] ++ args)} "$@"
+        '').outPath;
+      in { type = "app"; inherit program; };
+
+      # The port assumes that we are using M1s dock and there aren't any other USB2serial converters attached (or only ones that show up as ttyACM rather than ttyUSB).
+      # We could omit the argument but bflb-iot-tool would still use its own default.
+      defaultFlashArgs = [ "--chipname" "bl808" "--baudrate" "2000000" "--port" "/dev/ttyUSB1" ];
+    in (builtins.mapAttrs (name: drv: flake-utils.lib.mkApp { inherit name drv; }) {
+      inherit (packages)
+        bflb-mcu-tool
+        bflb-iot-tool
+        bflb-lab-dev-cube
+        thead-debugserver;
+      BLDevCube = packages.bflb-lab-dev-cube;
+      DebugServerConsole = packages.thead-debugserver;
+    }) // {
+      bl808-linux-1-flash-img = mkAppWithArgs {
+        drv = packages.bflb-iot-tool;
+        args = defaultFlashArgs ++ [ "--addr" "0xD2000" "--firmware" "${packages.bl808-linux-1}/whole_img_linux.bin" "--single" ];
+      };
+      bl808-linux-1-flash-rootfs = mkAppWithArgs {
+        drv = packages.bflb-iot-tool;
+        args = defaultFlashArgs ++ [ "--addr" "0x552000" "--firmware" packages.bl808-rootfs "--single" ];
+      };
+    };
   });
 }

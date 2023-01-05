@@ -87,4 +87,6 @@ stdenv.mkDerivation rec {
         --unset WAYLAND_DISPLAY
     done
   '';
+
+  passthru.exePath = "/bin/BLDevCube";
 }

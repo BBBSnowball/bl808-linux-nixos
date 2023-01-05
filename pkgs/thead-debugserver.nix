@@ -36,4 +36,6 @@ stdenv.mkDerivation {
     #patchelf --rpath $out/share/thead-debugserver $out/share/thead-debugserver/DebugServerConsole.elf
     extraAutoPatchelfLibs=($out/share/thead-debugserver)
   '';
+
+  passthru.exePath = "/bin/DebugServerConsole";
 }
