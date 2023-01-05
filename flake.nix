@@ -15,7 +15,18 @@
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs = { self, nixpkgs, flake-utils, ... }:
-  flake-utils.lib.eachDefaultSystem (system: let
+  let
+    #defaultSystems = flake-utils.lib.defaultSystems;
+    # -> no darwin, for now, because it doesn't support chrootenv (and libstdcxx5)
+    defaultSystems = ["aarch64-linux" "x86_64-linux"];
+
+    # `nix flake check` is quite conservative when checking the arguments of overlays.
+    fixOverlayForFlakeCheck = x: x // {
+      overlays = builtins.mapAttrs (k: v: final: prev: v final prev) (x.overlays or {});
+    };
+  in
+  fixOverlayForFlakeCheck (
+  flake-utils.lib.eachSystem defaultSystems (system: let
     callPackageIfFunction = callPackage: x: extra:
       with builtins;
       let
@@ -45,7 +56,7 @@
 
     dummy = derivation {
       inherit system;
-      name = "dummy (contains all packages, for debugging)";
+      name = "dummy--contains_all_packages__for_debugging_only";
       builder = pkgs.bash;
       args = ["-c" "echo \"This derivation is not meant to be built.\"; exit 1" ];
     };
@@ -113,6 +124,13 @@
       };
     };
 
+    checks = {
+      inherit (packages)
+        bflb-tools
+        prebuilt-linux
+        bl808-linux-1;
+    };
+
     devShells.default = packages.bl808-dev-env.env;
-  });
+  }));
 }
