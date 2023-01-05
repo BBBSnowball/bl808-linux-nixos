@@ -30,11 +30,11 @@
     overlay = final: prev:
       callPackageIfFunction final.callPackage ./pkgs/prebuilt-toolchain.nix {}
       // callPackageIfFunction pkgs.callPackage ./pkgs/bflb-tools.nix { inherit nixpkgs; }  #FIXME using pkgs here is not right!
-      // callPackageIfFunction final.callPackage ./pkgs/bflb-lab-dev-cube.nix { }
-      // callPackageIfFunction final.callPackage ./pkgs/thead-debugserver.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools-all.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
       // {
+        thead-debugserver = final.callPackage ./pkgs/thead-debugserver.nix { };
+        bflb-lab-dev-cube = final.callPackage ./pkgs/bflb-lab-dev-cube.nix { };
         bl808-rootfs = final.callPackage ./pkgs/bl808-rootfs.nix { };
         prebuilt-linux = final.callPackage ./pkgs/prebuilt-linux.nix { };
       };
