@@ -1,13 +1,15 @@
 # nix-build bl808_linux_build1.nix -o out
 # nix-build bl808_linux_build1.nix -o result-tools
-# Flash out/low_load_bl808_{d0,m0}.bin using the GUI.
+# Flash out/low_load_bl808_{d0,m0}.bin using the GUI:
+#   result-tools/bin/BLDevCube
+#   Step 2 in keep-downloads/prebuilt-linux/steps.md
 # Keep chip in bootloader mode and run:
 # result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware out/whole_img_linux.bin  --single
 # Open /dev/ttyUSB0 with baudrate 2000000 and login as root.
 #
 # Update only the rootfs:
 # nix-build bl808_linux_build1.nix -A rootfs -o result-rootfs && ./result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0x552000 --firmware result-rootfs --single
-{ nixpkgs ? <nixpkgs>, pkgs ? import nixpkgs {} }:
+{ nixpkgs ? <nixpkgs>, pkgs ? import nixpkgs {}, lib ? pkgs.lib }:
 let
   env = (pkgs.buildFHSUserEnv {
     name = "build-env";
@@ -36,6 +38,8 @@ let
     runScript = "bash";
   });
 
+  prebuiltToolchain = lib.mapAttrs (k: v: pkgs.callPackage v {}) (import ./pkgs/prebuilt-toolchain.nix);
+
   bflb-lab-dev-cube-env = pkgs.buildFHSUserEnv {
     name = "bflb-lab-dev-cube-env";
     targetPkgs = pkgs: with pkgs;
@@ -50,60 +54,17 @@ let
     extraOutputsToInstall = [ "dev" ];
   };
 
-  prebuiltCmake = pkgs.fetchzip {
-    url = "https://cmake.org/files/v3.19/cmake-3.19.3-Linux-x86_64.tar.gz";
-    hash = "sha256-r+bdir2TB110Vb8UqRxBoxbYkQIP0gsoSQwQRtphyu0=";
-  };
-  prebuiltGccBaremetal = pkgs.fetchzip {
-    url = "https://occ-oss-prod.oss-cn-hangzhou.aliyuncs.com/resource//1663142243961/Xuantie-900-gcc-elf-newlib-x86_64-V2.6.1-20220906.tar.gz";
-    hash = "sha256-7uWcvYl4uySHCCOTThiEHSmlEBdZVRYW3cpqHztwUn4=";
-  };
-  prebuiltGccLinux = pkgs.fetchzip {
-    url = "https://occ-oss-prod.oss-cn-hangzhou.aliyuncs.com/resource//1663142514282/Xuantie-900-gcc-linux-5.10.4-glibc-x86_64-V2.6.1-20220906.tar.gz";
-    hash = "sha256-CwruscgjWk+pKd+OxSEoYjclzoazk6J2UaKufSmJz+0=";
-  };
-
-  LabDevCube = pkgs.fetchzip {
-    url = "https://dev.bouffalolab.com/media/upload/download/BouffaloLabDevCube-v1.8.1.zip";
-    stripRoot = false;
-    hash = "sha256-qUlVusp+LeHayL0qXrSBZCCNUtOCC82wzNUcSfXRKOc=";
-    passthru.version = "1.8.1";
-  };
-
-  bflb-iot-tool-pypi = pkgs.python3Packages.fetchPypi {
-    pname = "bflb-iot-tool";
-    version = "1.8.1";
-    hash = "sha256-7kendLur1Fw0bhBJq14gM3fUG/y/K3IdWb5Jj2iP8cE=";
-  };
-  bflb-mcu-tool-pypi = pkgs.python3Packages.fetchPypi {
-    pname = "bflb-mcu-tool";
-    version = "1.8.1";
-    hash = "sha256-bY5z6bXV2BAd38kjCHCfFd8H+ZXIFFfs0EC+i4mxG4s=";
-  };
-  pycklink-pypi = pkgs.python3Packages.fetchPypi {
-    pname = "pycklink";
-    version = "0.1.1";
-    hash = "sha256-Ub3a72V15Fkeyo7RkbjMaj6faUrcC8RkRRSbNUuq/ks=";
-  };
-  bflb-crypto-plus-pypi = pkgs.python3Packages.fetchPypi {
-    pname = "bflb_crypto_plus";
-    version = "1.0";
-    hash = "sha256-sbSDh05dLstJ+fhSWXFa2Ut2+WJ7Pen6Z39spc5mYkI=";
-  };
-  thead-debugserver-download = pkgs.fetchzip {
-    url = "https://dl.sipeed.com/fileList/MAIX/M1s/M1s_Dock/9_Driver/cklink/T-Head-DebugServer-linux-x86_64-V5.16.5-20221021.sh.tar.gz";
-    hash = "sha256-IjDf0ynPegwpFukMbPrR54eBK3BjNDRN6ZBKV/I1g84=";
-  };
   prebuilt-linux = pkgs.fetchzip {
     url = "https://dl.sipeed.com/fileList/MAIX/M1s/M1s_Dock/7_Firmware/m1sdock_linux_20221116.zip";
     stripRoot = false;
     hash = "sha256-oALCXSI5pK0g/M2cn5kVOos+TnbxyuZoKMFhI0DBsrM=";
   };
 
-  downloads = {
-    inherit prebuiltCmake prebuiltGccBaremetal prebuiltGccLinux
-      LabDevCube bflb-iot-tool-pypi bflb-mcu-tool-pypi pycklink-pypi bflb-crypto-plus-pypi
-      thead-debugserver-download prebuilt-linux;
+  downloads = prebuiltToolchain // lib.mapAttrs (k: v: v.src) {
+    inherit bflb-iot-tool bflb-mcu-tool pycklink bflb-crypto-plus
+      bflb-lab-dev-cube thead-debugserver;
+  } // {
+    inherit prebuilt-linux;
   };
   keep-downloads = pkgs.linkFarm "bl808_downloads" downloads;
 
@@ -154,19 +115,25 @@ let
       exit $x
     fi
   '';
-
-  bflb-crypto-plus = pkgs.python3Packages.buildPythonPackage {
+  bflb-crypto-plus = pkgs.python3Packages.buildPythonPackage rec {
     pname = "bflb-crypto-plus";
     version = "1.0";
-    src = bflb-crypto-plus-pypi;
+    src = pkgs.python3Packages.fetchPypi {
+      pname = "bflb_crypto_plus";
+      inherit version;
+      hash = "sha256-sbSDh05dLstJ+fhSWXFa2Ut2+WJ7Pen6Z39spc5mYkI=";
+    };
     propagatedBuildInputs = with pkgs.python3Packages; [
       ecdsa pycryptodome setuptools
     ];
   };
-  pycklink = pkgs.python3Packages.buildPythonPackage {
+  pycklink = pkgs.python3Packages.buildPythonPackage rec {
     pname = "pycklink";
     version = "0.1.1";
-    src = pycklink-pypi;
+    src = pkgs.python3Packages.fetchPypi {
+      inherit pname version;
+      hash = "sha256-Ub3a72V15Fkeyo7RkbjMaj6faUrcC8RkRRSbNUuq/ks=";
+    };
   };
   portalocker_2_0 = with pkgs.python3Packages; buildPythonPackage rec {
     pname = "portalocker";
@@ -211,15 +178,21 @@ let
       chmod +x $out/bin/${pname}
     '';
   });
-  bflb-mcu-tool = bflb-common {
+  bflb-mcu-tool = bflb-common rec {
     pname = "bflb-mcu-tool";
     version = "1.8.1";
-    src = bflb-mcu-tool-pypi;
+    src = pkgs.python3Packages.fetchPypi {
+      inherit pname version;
+      hash = "sha256-bY5z6bXV2BAd38kjCHCfFd8H+ZXIFFfs0EC+i4mxG4s=";
+    };
   };
-  bflb-iot-tool = bflb-common {
+  bflb-iot-tool = bflb-common rec {
     pname = "bflb-iot-tool";
     version = "1.8.1";
-    src = bflb-iot-tool-pypi;
+    src = pkgs.python3Packages.fetchPypi {
+      inherit pname version;
+      hash = "sha256-7kendLur1Fw0bhBJq14gM3fUG/y/K3IdWb5Jj2iP8cE=";
+    };
 
     postPatch = ''
       echo 'entry_points["console_scripts"].append("bflb_eflash_loader = libs.bflb_eflash_loader:run")' >>setup.py
@@ -248,7 +221,10 @@ let
   thead-debugserver = pkgs.stdenv.mkDerivation {
     name = "thead-debugserver";
 
-    src = thead-debugserver-download;
+    src = pkgs.fetchzip {
+      url = "https://dl.sipeed.com/fileList/MAIX/M1s/M1s_Dock/9_Driver/cklink/T-Head-DebugServer-linux-x86_64-V5.16.5-20221021.sh.tar.gz";
+      hash = "sha256-IjDf0ynPegwpFukMbPrR54eBK3BjNDRN6ZBKV/I1g84=";
+    };
 
     nativeBuildInputs = [ pkgs.autoPatchelfHook ];
     buildInputs = with pkgs; [ libusb libstdcxx5 ];
@@ -325,7 +301,13 @@ let
     pname = "bflb-lab-dev-cube";
     version = src.version;
 
-    src = LabDevCube;
+    src = pkgs.fetchzip {
+      url = "https://dev.bouffalolab.com/media/upload/download/BouffaloLabDevCube-v1.8.1.zip";
+      stripRoot = false;
+      hash = "sha256-qUlVusp+LeHayL0qXrSBZCCNUtOCC82wzNUcSfXRKOc=";
+      passthru.version = "1.8.1";
+    };
+
     dontUnpack = true;
     dontBuild = true;
 
@@ -407,7 +389,7 @@ in
   with pkgs;
   stdenv.mkDerivation {
     passthru = downloads // {
-      inherit keep-downloads
+      inherit downloads keep-downloads
         bflb-mcu-tool bflb-iot-tool bflb-tools thead-debugserver rootfs;
     };
 
@@ -429,9 +411,9 @@ in
 
     postPatch = ''
       mkdir toolchain
-      ln -s ${prebuiltCmake}        toolchain/cmake
-      ln -s ${prebuiltGccBaremetal} toolchain/elf_newlib_toolchain
-      ln -s ${prebuiltGccLinux}     toolchain/linux_toolchain
+      ln -s ${prebuiltToolchain.prebuiltCmake}        toolchain/cmake
+      ln -s ${prebuiltToolchain.prebuiltGccBaremetal} toolchain/elf_newlib_toolchain
+      ln -s ${prebuiltToolchain.prebuiltGccLinux}     toolchain/linux_toolchain
 
       #set -x
       #ls -l toolchain/
