@@ -1,8 +1,10 @@
 let
-  common = f: { stdenv, fetchFromGitHub, python3, git
-    , prebuiltCmake, prebuiltGccBaremetal, prebuiltGccLinux, bl808-linux-2-build-env }@args:
-  let env = bl808-linux-2-build-env; in
-  stdenv.mkDerivation ({
+  common = f: { stdenv, fetchFromGitHub, python3, git, cmake,
+    xuantie-gnu-toolchain-multilib-newlib,
+    xuantie-gnu-toolchain-multilib-linux,
+    bison, yacc, flex, bc, lz4,
+  }@args:
+  stdenv.mkDerivation (f args // {
     src = fetchFromGitHub {
       owner = "bouffalolab";
       repo = "bl808_linux";
@@ -12,36 +14,17 @@ let
   
     postPatch = ''
       mkdir toolchain
-      ln -s ${prebuiltCmake}        toolchain/cmake
-      ln -s ${prebuiltGccBaremetal} toolchain/elf_newlib_toolchain
-      ln -s ${prebuiltGccLinux}     toolchain/linux_toolchain
+      ln -s ${cmake}                                 toolchain/cmake
+      ln -s ${xuantie-gnu-toolchain-multilib-newlib} toolchain/elf_newlib_toolchain
+      ln -s ${xuantie-gnu-toolchain-multilib-linux}  toolchain/linux_toolchain
   
       bash ./switch_to_m1sdock.sh
     '';
   
-    nativeBuildInputs = [ python3 git ];
-  } // f (args // { inherit env; }));
+    nativeBuildInputs = [ python3 git ] ++ (f args).nativeBuildInputs or [];
+  });
 in {
-  bl808-linux-2-build-env = { buildFHSUserEnv }:
-  buildFHSUserEnv {
-    name = "build-env";
-    targetPkgs = pkgs: with pkgs;
-      [
-        autoPatchelfHook zlib flex bison ncurses pkg-config
-        #ncurses5
-        gcc binutils
-        bc
-        dtc lz4
-      ];
-    multiPkgs = pkgs: with pkgs;
-      [ glibc
-      xorg.libX11
-      ];
-    runScript = "bash";
-    extraOutputsToInstall = [ "dev" ];
-  };
-
-  bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, prebuiltGccLinux, bl808-linux-2-build-env }:
+  bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, xuantie-gnu-toolchain-multilib-linux }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-opensbi";
 
@@ -58,17 +41,11 @@ in {
       #../patches/bl808-opensbi-03-debug.patch
     ];
 
-    buildScript = ''
-      grep 0x00401502 platform/thead/c910/platform.c
-      make PLATFORM=thead/c910 CROSS_COMPILE=${prebuiltGccLinux}/bin/riscv64-unknown-linux-gnu- -j$(nproc) \
+    buildPhase = ''
+      make PLATFORM=thead/c910 CROSS_COMPILE=${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu- -j$NIX_BUILD_CORES \
         FW_TEXT_START=0x3EFF0000 \
         FW_JUMP_ADDR=0x50000000
-      ${prebuiltGccLinux}/bin/riscv64-unknown-linux-gnu-objdump -dx build/platform/thead/c910/firmware/fw_jump.elf >build/platform/thead/c910/firmware/fw_jump.lst
-    '';
-    passAsFile = [ "buildScript" ];
-
-    buildPhase = ''
-      ${bl808-linux-2-build-env}/bin/build-env $buildScriptPath
+      ${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu-objdump -dx build/platform/thead/c910/firmware/fw_jump.elf >build/platform/thead/c910/firmware/fw_jump.lst
     '';
 
     installPhase = ''
@@ -77,7 +54,7 @@ in {
     '';
   };
 
-  bl808-linux-2-low-load = common ({ env, ... }: {
+  bl808-linux-2-low-load = common ({ ... }: {
     name = "bl808-linux-2-low-load";
     patches = [
       ../patches/bl808-linux-enable-jtag.patch
@@ -85,7 +62,7 @@ in {
     ];
 
     buildPhase = ''
-      ${env}/bin/build-env build.sh low_load
+      bash build.sh low_load
     '';
 
     installPhase = ''
@@ -111,10 +88,12 @@ in {
     '';
   };
 
-  bl808-linux-2-kernel = common ({ env, ... }: {
+  bl808-linux-2-kernel = common ({ bison, yacc, flex, bc, lz4, ... }: {
     name = "bl808-linux-2-linux";
+    nativeBuildInputs = [ bison yacc flex bc lz4 ];
     buildPhase = ''
-      ${env}/bin/build-env build.sh kernel
+      patchShebangs ./linux*/scripts/ld-version.sh
+      bash build.sh kernel
     '';
     installPhase = ''
       mkdir $out

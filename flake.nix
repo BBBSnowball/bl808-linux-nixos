@@ -66,6 +66,8 @@
         prebuiltCmake
         prebuiltGccBaremetal
         prebuiltGccLinux
+        xuantie-gnu-toolchain-multilib-newlib
+        xuantie-gnu-toolchain-multilib-linux
 
         chrootenv
         #bflb-crypto-plus
