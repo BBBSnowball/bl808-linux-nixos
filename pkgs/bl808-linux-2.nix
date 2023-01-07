@@ -1,28 +1,4 @@
 let
-  common = f: { stdenv, fetchFromGitHub, python3, git, cmake,
-    xuantie-gnu-toolchain-multilib-newlib,
-    xuantie-gnu-toolchain-multilib-linux,
-    bison, yacc, flex, bc, lz4,
-  }@args:
-  stdenv.mkDerivation (f args // {
-    src = fetchFromGitHub {
-      owner = "bouffalolab";
-      repo = "bl808_linux";
-      rev = "561ee61222e5d5e7d028b5cf237c0ddf4a616f1e";
-      hash = "sha256-k8wm4e7/ynPoY+ZVGnHIoq7o1yCrBKInFsUDL2xqK1w=";
-    };
-  
-    postPatch = ''
-      mkdir toolchain
-      ln -s ${cmake}                                 toolchain/cmake
-      ln -s ${xuantie-gnu-toolchain-multilib-newlib} toolchain/elf_newlib_toolchain
-      ln -s ${xuantie-gnu-toolchain-multilib-linux}  toolchain/linux_toolchain
-  
-      bash ./switch_to_m1sdock.sh
-    '';
-  
-    nativeBuildInputs = [ python3 git ] ++ (f args).nativeBuildInputs or [];
-  });
 in {
   bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, xuantie-gnu-toolchain-multilib-linux }:
   stdenv.mkDerivation {
@@ -54,22 +30,41 @@ in {
     '';
   };
 
-  bl808-linux-2-low-load = common ({ ... }: {
-    name = "bl808-linux-2-low-load";
-    patches = [
-      ../patches/bl808-linux-enable-jtag.patch
-      ../patches/bl808-linux-larger-opensbi.patch
-    ];
+  bl808-linux-2-low-load-common = {
+    stdenv, fetchFromGitHub, python3, git, cmake,
+    xuantie-gnu-toolchain-multilib-newlib,
+    cpu ? "xx",
+  }@args:
+  stdenv.mkDerivation {
+    name = "bl808-linux-2-low-load-${cpu}";
+
+    src = fetchFromGitHub {
+      owner = "bouffalolab";
+      repo = "bl808_linux";
+      rev = "561ee61222e5d5e7d028b5cf237c0ddf4a616f1e";
+      hash = "sha256-k8wm4e7/ynPoY+ZVGnHIoq7o1yCrBKInFsUDL2xqK1w=";
+    };
+  
+    nativeBuildInputs = [ git ];
+
+    postPatch = '' 
+      bash ./switch_to_m1sdock.sh
+    '';
 
     buildPhase = ''
-      bash build.sh low_load
+      NEWLIB_ELF_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-newlib}/bin/riscv64-unknown-elf-
+      cd bl_mcu_sdk_bl808
+      make CHIP=bl808 CPU_ID=${cpu} CMAKE_DIR=${cmake}/bin CROSS_COMPILE=$NEWLIB_ELF_CROSS_PREFIX SUPPORT_DUALCORE=y APP=low_load -j$NIX_BUILD_CORES
     '';
 
     installPhase = ''
       mkdir $out
-      cp out/low_load* $out/
+      cp -f out/examples/low_load/low_load_bl808_${cpu}.bin $out
     '';
-  });
+  };
+
+  bl808-linux-2-low-load-m0 = { bl808-linux-2-low-load-common }: bl808-linux-2-low-load-common.override { cpu = "m0"; };
+  bl808-linux-2-low-load-d0 = { bl808-linux-2-low-load-common }: bl808-linux-2-low-load-common.override { cpu = "d0"; };
 
   bl808-linux-2-dtb = { stdenv, dtc }:
   stdenv.mkDerivation {
@@ -115,10 +110,10 @@ in {
     '';
   };
 
-  bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load, bl808-linux-2-dtb, bl808-linux-2-kernel, bl808-rootfs }:
+  bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load-m0, bl808-linux-2-low-load-d0, bl808-linux-2-dtb, bl808-linux-2-kernel, bl808-rootfs }:
   stdenv.mkDerivation {
     name = "bl808_linux";
-    src = bl808-linux-2-low-load.src;
+    src = bl808-linux-2-low-load-m0.src;
     dontUnpack = true;
 
     nativeBuildInputs = [ python3 ];
@@ -126,7 +121,8 @@ in {
     buildPhase = ''
       mkdir out
       cp -s ${bl808-linux-2-opensbi}/* out/
-      cp -s ${bl808-linux-2-low-load}/* out/
+      cp -s ${bl808-linux-2-low-load-m0}/* out/
+      cp -s ${bl808-linux-2-low-load-d0}/* out/
       cp -s ${bl808-linux-2-dtb}/* out/
       cp -s ${bl808-linux-2-kernel}/* out/
       cp -s ${bl808-rootfs} out/squashfs_test.img
