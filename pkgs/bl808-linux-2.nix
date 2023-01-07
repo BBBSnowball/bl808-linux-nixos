@@ -88,23 +88,37 @@ in {
     '';
   };
 
-  bl808-linux-2-kernel = common ({ bison, yacc, flex, bc, lz4, ... }: {
+  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, lz4, xuantie-gnu-toolchain-multilib-linux }:
+  stdenv.mkDerivation {
     name = "bl808-linux-2-linux";
+
+    src = fetchFromGitHub {
+      owner = "BBBSnowball";
+      repo = "linux-riscv-bl808";
+      rev = "fcd93b59872e7aad4cdabaac6f5578ee640c1f01";
+      hash = "sha256-OoxUMEviiZ68s94XyhIjs+KrgV735+Iimh/XpnL0bPU=";
+    };
+
     nativeBuildInputs = [ bison yacc flex bc lz4 ];
+
     buildPhase = ''
-      patchShebangs ./linux*/scripts/ld-version.sh
-      bash build.sh kernel
+      patchShebangs scripts/ld-version.sh
+      LINUX_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu-
+      cp c906.config .config
+      make ARCH=riscv CROSS_COMPILE=$LINUX_CROSS_PREFIX Image -j$NIX_BUILD_CORES
+      lz4 -9 -f arch/riscv/boot/Image arch/riscv/boot/Image.lz4
     '';
+
     installPhase = ''
       mkdir $out
-      cp out/Image.lz4 $out/
+      cp arch/riscv/boot/Image.lz4 $out/
     '';
-  });
+  };
 
   bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load, bl808-linux-2-dtb, bl808-linux-2-kernel, bl808-rootfs }:
   stdenv.mkDerivation {
     name = "bl808_linux";
-    src = bl808-linux-2-kernel.src;
+    src = bl808-linux-2-low-load.src;
     dontUnpack = true;
 
     nativeBuildInputs = [ python3 ];
