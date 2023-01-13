@@ -59,7 +59,7 @@ in {
 
     installPhase = ''
       mkdir $out
-      cp -f out/examples/low_load/low_load_bl808_${cpu}.bin $out
+      cp out/examples/low_load/low_load_bl808_${cpu}.* $out/
     '';
   };
 
@@ -107,6 +107,7 @@ in {
     installPhase = ''
       mkdir $out
       cp arch/riscv/boot/Image.lz4 $out/
+      cp vmlinux $out/Image.elf
     '';
   };
 
