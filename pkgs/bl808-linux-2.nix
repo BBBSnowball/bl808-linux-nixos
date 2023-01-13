@@ -83,7 +83,7 @@ in {
     '';
   };
 
-  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, lz4, xuantie-gnu-toolchain-multilib-linux }:
+  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-linux";
 
@@ -94,13 +94,17 @@ in {
       hash = "sha256-OoxUMEviiZ68s94XyhIjs+KrgV735+Iimh/XpnL0bPU=";
     };
 
-    nativeBuildInputs = [ bison yacc flex bc lz4 ];
+    nativeBuildInputs = [ bison yacc flex bc lz4 kmod ];
+
+    outputs = [ "out" "modules" ];
 
     buildPhase = ''
       patchShebangs scripts/ld-version.sh
       LINUX_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu-
       cp c906.config .config
-      make ARCH=riscv CROSS_COMPILE=$LINUX_CROSS_PREFIX Image -j$NIX_BUILD_CORES
+
+      makeFlags=(ARCH=riscv CROSS_COMPILE=$LINUX_CROSS_PREFIX -j$NIX_BUILD_CORES INSTALL_MOD_PATH=$modules DEPMOD=${kmod}/bin/depmod)
+      make ''${makeFlags[@]} Image modules
       lz4 -9 -f arch/riscv/boot/Image arch/riscv/boot/Image.lz4
     '';
 
@@ -108,6 +112,9 @@ in {
       mkdir $out
       cp arch/riscv/boot/Image.lz4 $out/
       cp vmlinux $out/Image.elf
+
+      make ''${makeFlags[@]} modules_install
+      rm $modules/lib/modules/*/{build,source}
     '';
   };
 
@@ -126,6 +133,7 @@ in {
       cp -s ${bl808-linux-2-low-load-d0}/* out/
       cp -s ${bl808-linux-2-dtb}/* out/
       cp -s ${bl808-linux-2-kernel}/* out/
+      ln -s ${bl808-linux-2-kernel.modules}/ out/linux-modules
       cp -s ${bl808-rootfs} out/squashfs_test.img
       ( cd out && python3 $src/out/merge_7_5Mbin.py )
     '';
