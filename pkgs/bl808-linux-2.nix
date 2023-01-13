@@ -121,7 +121,6 @@ in {
   bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load-m0, bl808-linux-2-low-load-d0, bl808-linux-2-dtb, bl808-linux-2-kernel, bl808-rootfs }:
   stdenv.mkDerivation {
     name = "bl808_linux";
-    src = bl808-linux-2-low-load-m0.src;
     dontUnpack = true;
 
     nativeBuildInputs = [ python3 ];
@@ -135,7 +134,7 @@ in {
       cp -s ${bl808-linux-2-kernel}/* out/
       ln -s ${bl808-linux-2-kernel.modules}/ out/linux-modules
       cp -s ${bl808-rootfs} out/squashfs_test.img
-      ( cd out && python3 $src/out/merge_7_5Mbin.py )
+      ( cd out && python3 ${../merge_7_5Mbin.py} )
     '';
   
     installPhase = ''

@@ -1,60 +1,94 @@
-import os
-import sys
+import struct
+from math import inf
 
-def bl_create_flash_default_data(length):
-    datas = bytearray(length)
-    for i in range(length):
-        datas[i] = 0xff
-    return datas
+kB = 1024
+MB = 1024*1024
 
-def bl_gen_linux_flash_bin():
-    whole_img_data = bl_create_flash_default_data((7680*1024)-335872)  # offset 0x52000
-    linux_dtb_file = "./hw.dtb.5M" #0x51ff8000  64k
-    linux_opensbi_file = "./fw_jump.bin" # 0x3eff0000  64k
-    linux_rootfs_file = "./squashfs_test.img"  # 0x58400000 4M
-    linux_image_file = "./Image.lz4"  # 0x50000000 4M
-    linux_out_img_file = "./whole_img_linux.bin"
-    linux_dtb_file_size = os.stat(linux_dtb_file).st_size
-    print("dtb size:", linux_dtb_file_size)
-    fp = open(linux_dtb_file, 'rb')
-    data0 = fp.read() + bytearray(0)
-    fp.close()
-    whole_img_data[0x0:0x0+len(data0)] = data0  # 0x0~0x10000 64k
-    linux_opensbi_file_size = os.stat(linux_opensbi_file).st_size
-    print("opensbi size:",linux_opensbi_file_size)
-    fp = open(linux_opensbi_file, 'rb')
-    data1 = fp.read() + bytearray(0)
-    fp.close()
-    whole_img_data[0x10000:0x10000+len(data1)] = data1  # 0x10000~0x20000 64k
-    linux_image_file_size = os.stat(linux_image_file).st_size
-    print("kernel img size:",linux_image_file_size)
+def format_size(x):
+    if (x % MB) == 0:
+        return "%d MB" % (x/MB)
+    elif (x % kB) == 0:
+        return "%d kB" % (x/kB)
+    else:
+        return "%d bytes" % x
 
-    b0 = (linux_image_file_size & 0xff000000) >> 24
-    b1 = (linux_image_file_size & 0xff0000) >> 16
-    b2 = (linux_image_file_size & 0xff00) >> 8
-    b3 = linux_image_file_size & 0xff
-    # print(b0)
-    # print(b1)
-    # print(b2)
-    # print(b3)
-    header2 = [0x00,0x00,0x00,0x50,b3,b2,b1,b0]
-    whole_img_data[0x1fff8:0x20000] = bytearray((header2)) # image header
-    fp = open(linux_image_file, 'rb')
-    data2 = fp.read() + bytearray(0)
-    fp.close()
-    whole_img_data[0x20000:0x20000+len(data2)] = data2 # 4M
-    linux_rootfs_file_size = os.stat(linux_rootfs_file).st_size
-    print("rootfs size:",linux_rootfs_file_size)
-    fp = open(linux_rootfs_file, 'rb')
-    data3 = fp.read() + bytearray(0)
-    fp.close()
-    # whole_img_data[0x480000-0x52000:0x480000-0x52000+len(data3)] = data3 #3M  start 5M
-    whole_img_data[0x480000:0x480000+len(data3)] = data3 #3M  start 5M
-    fp = open(linux_out_img_file, 'wb+')
-    fp.write(whole_img_data)
-    fp.close()
+class FlashRegion(object):
+    def __init__(self, from_file, flash_offset, load_address, max_size=inf):
+        self.from_file = from_file
+        self.flash_offset = flash_offset
+        self.load_address = load_address
+        self.max_size = max_size
+
+    def read(self):
+        if self.from_file is None:
+            self.data = b""
+        else:
+            with open(self.from_file, 'rb') as f:
+                self.data = f.read()
+
+class FlashRegions(object):
+    def __init__(self, flash_size):
+        self.flash_size = flash_size
+        self.regions = {}
+
+    def add(self, name, *args, **kwargs):
+        v = FlashRegion(*args, **kwargs)
+        self.regions[name] = v
+        setattr(self, name, v)
+
+    def read(self):
+        for k,v in self.regions.items():
+            v.read()
+
+    def check(self):
+        # reduce max_size based on where the next item starts in flash
+        next_start = self.flash_size
+        for region in sorted(self.regions.values(), key=lambda x: x.flash_offset, reverse=True):
+            #print("DEBUG: offset=%08x, next=%08x, diff=%08x" % (region.flash_offset, next_start, next_start - region.flash_offset))
+            region.max_size = min(region.max_size, next_start - region.flash_offset)
+            next_start = region.flash_offset
+
+        for k,v in self.regions.items():
+            currsz = len(v.data)
+            maxsz = v.max_size
+            print("%-18s %8d (%3d %%, max %7s)" % (k + " size:", currsz, 100*currsz/maxsz, format_size(maxsz)))
+            if len(v.data) > v.max_size:
+                raise Exception("Region %s is too big: %d > %d" % (k, currsz, maxsz))
+
+    def collect_data(self):
+        data = bytearray(b'\xff' * self.flash_size)
+        for k,v in self.regions.items():
+            data[v.flash_offset:v.flash_offset+len(v.data)] = v.data
+        return data
+
+whole_img_base = 0xD2000
+
+def make_regions():
+    regions = FlashRegions(8*MB)
+    #NOTE There are additional size requirements, which are checked by the linker scripts for low_load.
+    regions.add("low_load_m0", "low_load_bl808_m0.bin", 0x00002000, 0x58000000)
+    regions.add("low_load_d0", "low_load_bl808_d0.bin", 0x00052000, 0x58000000)  # same load address because it will be "loaded" by XIP mapping
+    regions.add("dtb",         "hw.dtb.5M",             whole_img_base, 0x51ff8000)
+    regions.add("opensbi",     "fw_jump.bin",           whole_img_base+0x10000, 0x3eff0000, max_size=0xc800)  # only with patched low_load_d0; otherwise, 0xc000
+    regions.add("linux",       "Image.lz4",             whole_img_base+0x20000, 0x50000000)
+    regions.add("linux_header", None,                   regions.linux.flash_offset - 8, 0)
+    regions.add("rootfs",      "squashfs_test.img",     whole_img_base+0x480000, 0x58400000)
+    return regions
 
 if __name__ == '__main__':
-    print("merge bin start...")
-    bl_gen_linux_flash_bin()
-    print("merge done!")
+    regions = make_regions()
+    regions.read()
+
+    # old script was adding a zero byte to the dtb so let's do the same
+    # -> actually, let's skip that because it was adding a zero byte to everything.
+    #regions.dtb.data += b'\0'
+    # add header to Linux image (TODO: what does it do? is this for LZ4?)
+    regions.linux_header.data = b'\0\0\0\x50' + struct.pack('<I', len(regions.linux.data))
+
+    regions.check()
+
+    flash_data = regions.collect_data()
+    flash_data = flash_data[whole_img_base:]  # low_load_* is programmed with BLDevCube; we start at dtb
+    with open("whole_img_linux.bin", "wb+") as f:
+        f.write(flash_data)
+
