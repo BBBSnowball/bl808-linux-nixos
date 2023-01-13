@@ -45,6 +45,7 @@
         thead-debugserver = final.callPackage ./pkgs/thead-debugserver.nix { };
         bflb-lab-dev-cube = final.callPackage ./pkgs/bflb-lab-dev-cube.nix { };
         bl808-rootfs = final.callPackage ./pkgs/bl808-rootfs.nix { };
+        bl808-rootfs-dir = final.callPackage ./pkgs/bl808-rootfs.nix { asDir = true; };
         prebuilt-linux = final.callPackage ./pkgs/prebuilt-linux.nix { };
       };
   in {
@@ -80,6 +81,7 @@
         bflb-tools
 
         bl808-rootfs
+        bl808-rootfs-dir
         prebuilt-linux
         bl808-linux-1
         bl808-linux-2;
