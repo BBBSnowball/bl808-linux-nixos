@@ -85,6 +85,11 @@ in {
   
     nativeBuildInputs = [ git ];
 
+    patches = [
+      ../patches/bl808-linux-enable-jtag.patch
+      ../patches/bl808-linux-larger-opensbi.patch
+    ];
+
     postPatch = '' 
       bash ./switch_to_m1sdock.sh
     '';
