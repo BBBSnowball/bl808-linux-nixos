@@ -22,7 +22,8 @@ stdenv.mkDerivation rec {
     ];
   });
 
-  refsDrv = linkFarmFromDrvs "refs" [ busybox tcl ];
+  #refsDrv = linkFarmFromDrvs "refs" [ busybox tcl ];
+  refsDrv = linkFarmFromDrvs "refs" [ busybox ];
   refs = writeReferencesToFile refsDrv;
 
   buildImage = ''
