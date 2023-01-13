@@ -1,6 +1,44 @@
 let
+  wrapPrebuiltToolchain = toolchain: { bl808-linux-2-build-env, runCommand, runtimeShell, ... }:
+  runCommand "wrap" {} ''
+    mkdir $out/bin -p
+    cd ${toolchain}/bin
+    for x in * ; do
+      echo "#!${runtimeShell}" >$out/bin/"$x"
+      echo "exec ${bl808-linux-2-build-env}/bin/build-env -c \"exec '${toolchain}/bin/$x' \\\"\\\$@\\\"\" -- \"\$@\"" >>$out/bin/"$x"
+      chmod +x $out/bin/"$x"
+    done
+  '';
 in {
-  bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, xuantie-gnu-toolchain-multilib-linux }:
+  bl808-linux-2-build-env = { buildFHSUserEnv }:
+  buildFHSUserEnv {
+    name = "build-env";
+    targetPkgs = pkgs: with pkgs;
+      [
+        autoPatchelfHook zlib flex bison ncurses pkg-config
+        #ncurses5
+        gcc binutils
+        bc
+        dtc lz4
+      ];
+    multiPkgs = pkgs: with pkgs;
+      [ glibc
+      xorg.libX11
+      ];
+    runScript = "bash";
+    extraOutputsToInstall = [ "dev" ];
+  };
+
+  prebuiltGccBaremetalInEnv = { prebuiltGccBaremetal, bl808-linux-2-build-env, runCommand, runtimeShell }@args: wrapPrebuiltToolchain prebuiltGccBaremetal args;
+  prebuiltGccLinuxInEnv = { prebuiltGccLinux, bl808-linux-2-build-env, runCommand, runtimeShell }@args: wrapPrebuiltToolchain prebuiltGccLinux args;
+
+  bl808-linux-2-use-prebuilt-toolchain = false;
+  xuantie-gnu-toolchain-multilib-newlib-2 = { bl808-linux-2-use-prebuilt-toolchain, prebuiltGccBaremetalInEnv, xuantie-gnu-toolchain-multilib-newlib }:
+    if bl808-linux-2-use-prebuilt-toolchain then prebuiltGccBaremetalInEnv else xuantie-gnu-toolchain-multilib-newlib;
+  xuantie-gnu-toolchain-multilib-linux-2 = { bl808-linux-2-use-prebuilt-toolchain, prebuiltGccLinuxInEnv, xuantie-gnu-toolchain-multilib-linux }:
+    if bl808-linux-2-use-prebuilt-toolchain then prebuiltGccLinuxInEnv else xuantie-gnu-toolchain-multilib-linux;
+
+  bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, xuantie-gnu-toolchain-multilib-linux-2 }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-opensbi";
 
@@ -18,10 +56,10 @@ in {
     ];
 
     buildPhase = ''
-      make PLATFORM=thead/c910 CROSS_COMPILE=${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu- -j$NIX_BUILD_CORES \
+      make PLATFORM=thead/c910 CROSS_COMPILE=${xuantie-gnu-toolchain-multilib-linux-2}/bin/riscv64-unknown-linux-gnu- -j$NIX_BUILD_CORES \
         FW_TEXT_START=0x3EFF0000 \
         FW_JUMP_ADDR=0x50000000
-      ${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu-objdump -dx build/platform/thead/c910/firmware/fw_jump.elf >build/platform/thead/c910/firmware/fw_jump.lst
+      ${xuantie-gnu-toolchain-multilib-linux-2}/bin/riscv64-unknown-linux-gnu-objdump -dx build/platform/thead/c910/firmware/fw_jump.elf >build/platform/thead/c910/firmware/fw_jump.lst
     '';
 
     installPhase = ''
@@ -32,7 +70,7 @@ in {
 
   bl808-linux-2-low-load-common = {
     stdenv, fetchFromGitHub, python3, git, cmake,
-    xuantie-gnu-toolchain-multilib-newlib,
+    xuantie-gnu-toolchain-multilib-newlib-2,
     cpu ? "xx",
   }@args:
   stdenv.mkDerivation {
@@ -52,7 +90,7 @@ in {
     '';
 
     buildPhase = ''
-      NEWLIB_ELF_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-newlib}/bin/riscv64-unknown-elf-
+      NEWLIB_ELF_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-newlib-2}/bin/riscv64-unknown-elf-
       cd bl_mcu_sdk_bl808
       make CHIP=bl808 CPU_ID=${cpu} CMAKE_DIR=${cmake}/bin CROSS_COMPILE=$NEWLIB_ELF_CROSS_PREFIX SUPPORT_DUALCORE=y APP=low_load -j$NIX_BUILD_CORES
     '';
@@ -83,7 +121,7 @@ in {
     '';
   };
 
-  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux }:
+  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux-2 }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-linux";
 
@@ -100,7 +138,7 @@ in {
 
     buildPhase = ''
       patchShebangs scripts/ld-version.sh
-      LINUX_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu-
+      LINUX_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-linux-2}/bin/riscv64-unknown-linux-gnu-
       cp c906.config .config
 
       makeFlags=(ARCH=riscv CROSS_COMPILE=$LINUX_CROSS_PREFIX -j$NIX_BUILD_CORES INSTALL_MOD_PATH=$modules DEPMOD=${kmod}/bin/depmod)
