@@ -34,12 +34,19 @@ stdenv.mkDerivation rec {
     cp -r ${../rootfs}/* .
 
     #cp -r $busybox/* .
+    mkdir -p nix/store
     while read x ; do
-      if [ "$x" != "$refsDrv" ] ; then
-        cp -r $x/* .
-      fi
+      cp -r $x nix/store/
     done <$refs
-    rm -rf lib/*.a lib/*.o man/
+    rm -rf nix/store/*/{lib/*.a,lib/*.o,man/}
+
+    mkdir bin
+    ln -s bin sbin
+    for x in nix/store/*/bin/* ; do
+      ln -s "/$x" "bin/''${x##*/}"
+    done
+    ln -s ${busybox}/linuxrc .
+    ln -s ${busybox}/default.script .
 
     chown -R root:root .
     mkdir -p ./dev/pts
@@ -72,7 +79,7 @@ stdenv.mkDerivation rec {
 
   installPhase = ''
     if ${asDirStr} ; then
-      cp -r . $out
+      cp -r x $out
     else
       cp squashfs_test.img $out
     fi
