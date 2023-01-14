@@ -1,4 +1,4 @@
-{ stdenv, fakeroot, squashfsTools, pkgsCross, writeReferencesToFile, linkFarmFromDrvs, asDir ? false, python3, pkg-config }:
+{ stdenv, fakeroot, squashfsTools, pkgsCross, writeReferencesToFile, linkFarmFromDrvs, asDir ? false, python3, pkg-config, fetchFromGitHub }:
 let
   pkgsTarget = pkgsCross.riscv64.pkgsMusl;
   pkgsTargetStatic = pkgsCross.riscv64.pkgsStatic;
@@ -21,6 +21,11 @@ stdenv.mkDerivation rec {
       #"--without-tzdata"
     ];
   });
+
+  # Usage:
+  # import machine
+  # machine.mem32[0x200008E4] = 0x00400b42  # led on
+  # machine.mem32[0x200008E4] = 0x01400b42  # led off
   micropython = (pkgsTarget.micropython.override { python3 = python3; }).overrideAttrs (old: {
     # We need a compiler for the host to build mpy-cross. The build complains that pkg-config is missing so let's add that, as well.
     nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ stdenv.cc pkg-config ];
@@ -36,7 +41,13 @@ stdenv.mkDerivation rec {
       runHook postBuild
     '';
   });
-  lua = pkgsTarget.lua.override {
+
+  # Usage:
+  # MMIO = require('periphery').MMIO
+  # glb = MMIO(0x20000000, 0x1000)
+  # glb:write32(0x8e4, 0x00400b42)  # led on
+  # glb:write32(0x8e4, 0x01400b42)  # led off
+  lua = (pkgsTarget.lua.override {
     # no readline because that pulls in ncurses, which is too big
     readline = null;
     postConfigure = ''
@@ -44,10 +55,30 @@ stdenv.mkDerivation rec {
       echo "#undef LUA_USE_READLINE" >>./src/luaconf.h
       substituteInPlace src/Makefile --replace "-lreadline" ""
     '';
-  };
 
   #refsDrv = linkFarmFromDrvs "refs" [ busybox tcl ];
-  refsDrv = linkFarmFromDrvs "refs" [ busybox micropython lua ];
+    packageOverrides = final: prev: {
+      lua-periphery = final.buildLuaPackage {
+        pname = "lua-periphery";
+        version = "2.3.1";
+        src = fetchFromGitHub {
+          owner = "vsergeev";
+          repo = "lua-periphery";
+          rev = "v2.3.1";
+          hash = "sha256-6G7sUNGob/xqexQ4KsW6oq+hMI38vd2tos2KPRSByQQ=";
+          fetchSubmodules = true;
+        };
+      };
+      lua = lua;
+    };
+  });
+  luaWithPkgs = lua.withPackages (p: [ p.lua-periphery ]);
+
+  refsDrv = linkFarmFromDrvs "refs" [
+    busybox
+    micropython
+    luaWithPkgs
+  ];
   refs = writeReferencesToFile refsDrv;
 
   buildImage = ''
@@ -98,6 +129,9 @@ stdenv.mkDerivation rec {
     mknod ./dev/null    c 1 3
 
     if ! ${asDirStr} ; then
+      # Lua references this but it doesn't seem to be required for our use case
+      rm -rf nix/store/*-riscv64-unknown-linux-musl-stage-final-*-lib
+
       mksquashfs . ../squashfs_test.img -comp gzip  #TODO lz4
     fi
   '';
