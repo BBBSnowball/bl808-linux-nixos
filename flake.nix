@@ -40,6 +40,7 @@
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-2.nix { }
       // callPackageIfFunction final.callPackage (import ./pkgs/xuantie-gnu-toolchain.nix { inherit (nixpkgs) lib; }) { }
+      // callPackageIfFunction final.callPackage ./pkgs/bl808-regs-py.nix { }
       // {
         inherit nixpkgs;  # used to import chrootenv in bflb-tools.nix
         thead-debugserver = final.callPackage ./pkgs/thead-debugserver.nix { };

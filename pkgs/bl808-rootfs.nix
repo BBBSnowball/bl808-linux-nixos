@@ -1,4 +1,4 @@
-{ stdenv, fakeroot, squashfsTools, pkgsCross, writeReferencesToFile, linkFarmFromDrvs, asDir ? false, python3, pkg-config, fetchFromGitHub }:
+{ stdenv, fakeroot, squashfsTools, pkgsCross, writeReferencesToFile, linkFarmFromDrvs, asDir ? false, python3, pkg-config, fetchFromGitHub, runCommand, bl808-regs-py }:
 let
   pkgsTarget = pkgsCross.riscv64.pkgsMusl;
   pkgsTargetStatic = pkgsCross.riscv64.pkgsStatic;
@@ -33,7 +33,21 @@ stdenv.mkDerivation rec {
       make -C ports/unix CC=${pkgsTarget.stdenv.cc.targetPrefix}gcc CROSS_COMPILE=${pkgsTarget.stdenv.cc.targetPrefix} CWARN=-Wall -j$NIX_BUILD_CORES
       runHook postBuild
     '';
+
+    outputs = [ "out" "mpycross" ];
+
+    installPhase = old.installPhase + ''
+      install -Dm755 mpy-cross/mpy-cross -t $mpycross/bin
+    '';
   });
+  passthru.micropythonPrecompile = drv: runCommand "${drv.name}-mpy" {} ''
+    cp -r ${drv} $out
+    chmod -R +w $out
+    find $out/usr/lib/micropython -name "*.py" | while read x ; do
+      ${micropython.mpycross}/bin/mpy-cross -X heapsize=4M "$x"
+      rm "$x"
+    done
+  '';
 
   # Usage:
   # MMIO = require('periphery').MMIO
@@ -69,6 +83,7 @@ stdenv.mkDerivation rec {
   refsDrv = linkFarmFromDrvs "refs" [
     busybox
     micropython
+    (passthru.micropythonPrecompile bl808-regs-py)
     #luaWithPkgs
     (pkgsTarget.screen.override { pam = null; })
     (pkgsTarget.lrzsz)
@@ -103,6 +118,11 @@ stdenv.mkDerivation rec {
     done
     ln -s ${busybox}/linuxrc .
     ln -s ${busybox}/default.script .
+
+    mkdir -p usr/lib/micropython
+    for x in nix/store/*/usr/lib/micropython/* ; do
+      ln -s ../../../$x usr/lib/micropython/
+    done
 
     chown -R root:root .
     mkdir -p ./dev/pts

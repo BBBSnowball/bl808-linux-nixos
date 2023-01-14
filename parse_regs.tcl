@@ -1,5 +1,6 @@
 set base gits/bl_mcu_sdk
-set CC result-toolchain-linux/bin/riscv64-unknown-linux-gnu-gcc
+#set CC result-toolchain-linux/bin/riscv64-unknown-linux-gnu-gcc
+set CC riscv64-unknown-linux-gnu-gcc
 set CFLAGS "-DBL808=1"
 
 if {[llength $argv] > 0} {
