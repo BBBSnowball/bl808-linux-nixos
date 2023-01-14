@@ -17,6 +17,8 @@ stdenv.mkDerivation rec {
   # import machine
   # machine.mem32[0x200008E4] = 0x00400b42  # led on
   # machine.mem32[0x200008E4] = 0x01400b42  # led off
+  #
+  # Start with `-X heapsize=4M` if you want to use bl808_regs.py.
   micropython = (pkgsTarget.micropython.override { python3 = python3; }).overrideAttrs (old: {
     # We need a compiler for the host to build mpy-cross. The build complains that pkg-config is missing so let's add that, as well.
     nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ stdenv.cc pkg-config ];
