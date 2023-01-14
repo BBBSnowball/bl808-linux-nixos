@@ -12,15 +12,6 @@ stdenv.mkDerivation rec {
 
   nativeBuildInputs = [ fakeroot squashfsTools ];
   busybox = pkgsTarget.busybox;
-  tcl = pkgsTarget.tcl.overrideAttrs (old: {
-    configureFlags = [
-      #"--help"
-      "--enable-threads"
-      "--enable-64bit"
-      #"--disable-load"
-      #"--without-tzdata"
-    ];
-  });
 
   # Usage:
   # import machine
@@ -56,7 +47,6 @@ stdenv.mkDerivation rec {
       substituteInPlace src/Makefile --replace "-lreadline" ""
     '';
 
-  #refsDrv = linkFarmFromDrvs "refs" [ busybox tcl ];
     packageOverrides = final: prev: {
       lua-periphery = final.buildLuaPackage {
         pname = "lua-periphery";
@@ -77,7 +67,7 @@ stdenv.mkDerivation rec {
   refsDrv = linkFarmFromDrvs "refs" [
     busybox
     micropython
-    luaWithPkgs
+    #luaWithPkgs
   ];
   refs = writeReferencesToFile refsDrv;
 
@@ -130,7 +120,7 @@ stdenv.mkDerivation rec {
 
     if ! ${asDirStr} ; then
       # Lua references this but it doesn't seem to be required for our use case
-      rm -rf nix/store/*-riscv64-unknown-linux-musl-stage-final-*-lib
+      #rm -rf nix/store/*-riscv64-unknown-linux-musl-stage-final-*-lib
 
       mksquashfs . ../squashfs_test.img -comp gzip  #TODO lz4
     fi
