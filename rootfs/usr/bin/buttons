@@ -1,0 +1,21 @@
+#! /bin/sh
+# Configure as input with pullup.
+devmem 0x2000091c 32 0x00400B13
+devmem 0x20000920 32 0x00400B13
+
+x=$(devmem 0x20000ac4)
+B22=$((1 - ($x>>22)&1))
+B23=$((1 - ($x>>23)&1))
+
+if [ "$B22" != 0 ] ; then
+  B22=X
+else
+  B22=-
+fi
+if [ "$B23" != 0 ] ; then
+  B23=X
+else
+  B23=-
+fi
+
+echo "$B22$B23"

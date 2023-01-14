@@ -1,0 +1,21 @@
+# based on https://gist.github.com/joaopizani/2718397
+hardstatus string '%{= kG}[%{G}%H%?][%1`%?%{g}][%= %{= kw}%-w%{+b yk} %n*%t%?(%u)%? %{-}%+w %=%{g}][%{B}%Y-%m-%d %{W}%c%{g}]'
+hardstatus alwayslastline
+backtick 1 1 1 /usr/bin/buttons
+
+defscrollback 1000
+startup_message off
+
+# doesn't work via serial console, it seems
+mousetrack on
+# We don't know what kind of terminal is connected to the uart
+# but let's assume that it is a modern GUI terminal that supports
+# OSC and mouse.
+termcapinfo * XT=1
+
+# skip window numer 0, use `C-a 0` for window 10
+screen -t sh 1 sh
+bind c screen 1
+bind 0 select 10
+
+zmodem auto

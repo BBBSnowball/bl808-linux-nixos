@@ -68,6 +68,8 @@ stdenv.mkDerivation rec {
     busybox
     micropython
     #luaWithPkgs
+    (pkgsTarget.screen.override { pam = null; })
+    (pkgsTarget.lrzsz)
   ];
   refs = writeReferencesToFile refsDrv;
 
@@ -83,7 +85,8 @@ stdenv.mkDerivation rec {
     while read x ; do
       cp -r $x nix/store/
     done <$refs
-    rm -rf nix/store/*/{lib/*.a,lib/*.o,lib/pkgconfig,man/,share/terminfo}
+    rm -rf nix/store/*/{lib/*.a,lib/*.o,lib/pkgconfig,man/}
+    rm -rf nix/store/*/share/terminfo/[0-9a-ux-zA-Z]*  # keep "v" for vt100
 
     mkdir bin
     ln -s bin sbin
