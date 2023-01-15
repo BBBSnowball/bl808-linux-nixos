@@ -31,6 +31,7 @@ Goals
     (Or at least I couldn't get them to do it. They don't seem to support multi-core and even a single core doesn't start if I use those tools.)
   - TODO: Fix exit code of Bouffallo's tools. This is ok for now because it works in the GUI and we only have one
     flash command after that (i.e. the user is likely to notice errors).
+  - TODO: Or look into how much work it would be to make [blisp](https://github.com/pine64/blisp) work for bl808.
 - Essential drivers:
   - remoteproc
     - communication between M0 and D0 cpus
@@ -63,13 +64,15 @@ Goals
     However, the current kernel+rootfs barely fits into 8 MB so this is not so likely.
     - We *could* have a non-Linux netboot firmware that boots into Linux. My goal is to get away from vendor wifi implementations
       so I don't think that I will go down that route just to save $2.
+  - All the things that are needed for WiFi must be available without WiFi, of course. If parts are identical to what netboot uses,
+    we can mount it from flash. Otherwise, we copy it to RAM (e.g. tmpfs or squashfs in RAM) as part of netboot.
 - Write some drivers for linux-iio (if I find the time).
 - Make device trees easier.
   - If Linux for bl808 becomes popular, we will have users switching from ESP32. We should make this easy.
   - At the minimum, we need good documentation on how to write device trees for the easy cases ("I want an ADC on that pin").
   - It would be useful to also explain advanced cases that wouldn't be possible without device trees, e.g. load a driver for an
     HD44780 display that is attached via an I2C port expander.
-  - Maybe even create a config 
+  - Maybe even create a config GUI.
 
 How to use it
 =============
@@ -102,6 +105,12 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
     - Connect to "UART" USB port of M1s dock. There will be two tty ports, e.g. ttyUSB0 and ttyUSB1.
       The one with the higher number is for the M0 cpu. We need that one for programming.
     - Put the board into bootloader mode: Press and hold the BOOT button, then press the reset (RST) button, then release BOOT.
+      - You can usually do the same by pressing BOOT while connecting power. This won't work for M1s dock because it will also
+        boot the BL702 in a different mode.
+      - TODO: RST/PU_CHIP is connected to U1RTS and BOOT to U1DTR. Can we automatically enter the bootloader with that?
+        (I think that I have seen something about DTR in some log but I always had to manually enter the bootloader.)
+        - `bflb_interface_uart.py` indeed uses DTR and RTS. There are several options to invert things so I should certainly
+          check this out as soon as I have working hardware again.
     - Switch to the MCU tab of Dev Cube.
     - M0 Group: Set `group0`, image address 0x58000000, file `./result-linux/low_load_bl808_m0.bin` ("m0" and ".bin")
     - D0 Group: Set `group1`, image address 0x58000000, file `./result-linux/low_load_bl808_d0.bin` ("d0" and ".bin")
@@ -113,6 +122,8 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
     - `load_load_bl808_*.bin` are written to address 0x2000 (group0, M0) resp. 0x52000 (group1, D0). The files contain
       raw RISC-V instructions. The `result-linux` directory also includes ".elf" (with debug symbols) and ".asm" (assembly text)
       files of these programs. Have a look at the ".asm" if you are curious.
+      - Actually, the GUI creates the files `img_group0.bin` and `img_group1.bin`, which are slightly different from our
+        binaries. As far as I can tell, they are just zero-padded to a multiple of 16 bytes.
     - 0x58000000 is the start of the flash execute-in-place (XIP) region. The bootrom will map the start of our `low_load`
       binaries to this address. Execute-in-place means that the flash will act like a memory-mapped ROM so we can
       run programs from flash without loading them into RAM.
@@ -131,6 +142,12 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
     - `low_load` for D0 will copy OpenSBI, device tree and Linux kernel to RAM. Then, it will jump to OpenSBI, which will initialize
       some peripherals and then start Linux. OpenSBI will remain in memory because it provides service calls for Linux.
     - If we figure out how to generate the config headers, we should be able to program these parts without using the GUI.
+      - Good news on that: The headers seem to be constant.
+      - Not so good news: The tool also seems to write efuses every time - which I found out because that seems to have bricked my
+        test board when I was programming with the GUI while picocom was still attached to the tty. Oops. This is only weak evidence
+        because it could also be that bad data in flash is breaking the bootloader or the hardware could be broken in other ways.
+      - This file is probably also constant and `bflb_eflash_loader.py` in bflb-mcu-tool calls `self.efuse_load_specified` with such
+        a file, i.e. I think we will be able to do this without the GUI.
     - In addition, it would be very useful if we can switch 
 5. Flash OpenSBI, device tree, Linux kernel and rootfs:
   - You should still be in bootloader mode. If not, see previous step.

@@ -163,6 +163,10 @@
         drv = packages.bflb-iot-tool;
         args = defaultFlashArgs ++ [ "--addr" "0xD2000" "--firmware" "${packages.bl808-linux-2}/whole_img_linux.bin" "--single" ];
       };
+      bl808-linux-2-flash-all-untested = mkAppWithArgs {
+        drv = packages.bflb-iot-tool;
+        args = defaultFlashArgs ++ [ "--addr" "0x0" "--firmware" "${packages.bl808-linux-2}/whole_flash.bin" "--single" ];
+      };
     };
   });
 }

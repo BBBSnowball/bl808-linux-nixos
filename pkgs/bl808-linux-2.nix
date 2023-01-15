@@ -177,7 +177,8 @@ in {
       cp -s ${bl808-linux-2-kernel}/* out/
       ln -s ${bl808-linux-2-kernel.modules}/ out/linux-modules
       cp -s ${bl808-rootfs} out/squashfs_test.img
-      ( cd out && python3 ${../merge_7_5Mbin.py} )
+      ( cd out && python3 ${../bl808-flash}/merge_7_5Mbin.py )
+      ( cd out && python3 ${../bl808-flash}/merge_7_5Mbin.py --type whole-flash --out whole_flash.bin )
     '';
   
     installPhase = ''
