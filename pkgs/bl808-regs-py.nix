@@ -13,5 +13,7 @@
     $tcl/bin/tclsh ${../parse_regs.tcl} $bl_mcu_sdk
     mkdir $out/usr/lib/micropython -p
     cp bl808_regs.py $out/usr/lib/micropython/
+    cp bl808_consts.py $out/usr/lib/micropython/
+    cp ${../reg_lib.py} $out/usr/lib/micropython/reg_lib.py
   '';
 }

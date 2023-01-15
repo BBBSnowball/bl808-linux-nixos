@@ -1,6 +1,6 @@
 import ffi
 import uctypes
-from uctypes import BFUINT32, BF_POS, BF_LEN
+from uctypes import BFUINT32, BF_POS, BF_LEN, UINT32
 import machine
 from machine import mem32
 import time
@@ -11,6 +11,8 @@ class Mmapper(object):
     
     c_open = libc.func("i", "open", "si")
     mmap = libc.func("p", "mmap", "pIiiii")
+    malloc = libc.func("p", "malloc", "I")
+    free = libc.func("v", "free", "p")
     
     O_RDWR = 2
     O_SYNC = 0x101000
@@ -50,17 +52,27 @@ class HexInt(int):
             return "0x%x" % self
 
 class Register(object):
-    __slots__ = ("name", "uctype", "offset", "peripheral", "_ref")
+    __slots__ = ("name", "uctype", "offset", "peripheral", "_ref", "_cache")
 
     def __init__(self, name, offset, *args):
         self.name = name
         self.peripheral = None
         self.offset = offset
         self._ref = None
+        self._cache = None
 
         self.uctype = {"value32": uctypes.UINT32 | 0}
         for name, pos, len in args:
-            self.uctype[name] = BFUINT32 | 0 | pos << BF_POS | len << BF_LEN
+            if pos == 0 and len == 32:
+                # This won't work with BF_LEN due to how the values are encoded.
+                self.uctype[name] = UINT32
+            else:
+                self.uctype[name] = BFUINT32 | 0 | pos << BF_POS | len << BF_LEN
+
+    def __del__(self):
+        if self._cache is not None:
+            Mmapper.free(uctypes.addressof(self._cache))
+            self._cache = None
 
     @property
     def ref(self):
@@ -87,6 +99,23 @@ class Register(object):
     @property
     def value(self):
         return HexInt(self.ref.value32)
+    @value.setter
+    def _set_value(self, value):
+        self.rev.value32 = value
+
+    @property
+    def tmp(self):
+        if self._cache is None:
+            addr = Mmapper.malloc(4)
+            self._cache = uctypes.struct(addr, self.uctype)
+        self._cache.value32 = self.ref.value32
+        return self._cache
+
+    def dbg(self):
+        print(repr(self))
+        tmp = self.tmp
+        for name, _ in self.uctype.items():
+            print("  %s: 0x%08x" % (name, getattr(tmp, name)))
 
 #class AttrDict(dict):
 #    def __getattr__(self, name):
@@ -194,10 +223,18 @@ class Peripheral(object):
             self._init_mmap()
         return self._ref
 
-def _glb_regs():
-    return [
-            Register("soc_info0", 0x0, ("chip_rdy", 27, 1), ("id", 28, 4)),
-            Register("gpio_8", 0x8e4, ("ie", 0, 1), ("oe", 6, 1), ("o", 24, 1)),
-    ]
-GLB = Peripheral("GLB", 0x20000000, _glb_regs)
+class MemoryRegion(object):
+    __slots__ = ("start", "end")
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+    def __repr__(self):
+        return "MemoryRegion(start=0x%08x, end=0x%08x, size_kb=%d)" % (self.start, self.end, (self.end-self.start)/1024)
+
+#def _glb_regs():
+#    return [
+#            Register("soc_info0", 0x0, ("chip_rdy", 27, 1), ("id", 28, 4)),
+#            Register("gpio_8", 0x8e4, ("ie", 0, 1), ("oe", 6, 1), ("o", 24, 1)),
+#    ]
+#GLB = Peripheral("GLB", 0x20000000, _glb_regs)
 

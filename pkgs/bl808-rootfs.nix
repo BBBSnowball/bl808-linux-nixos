@@ -86,7 +86,8 @@ stdenv.mkDerivation rec {
     (passthru.micropythonPrecompile bl808-regs-py)
     #luaWithPkgs
     (pkgsTarget.screen.override { pam = null; })
-    (pkgsTarget.lrzsz)
+    #(pkgsTarget.lrzsz)
+    (pkgsTarget.lrzsz.overrideAttrs (old: { postInstall = ''rm $out/bin/{rx,rb,sx,sb}''; }))
   ];
   refs = writeReferencesToFile refsDrv;
 
@@ -102,8 +103,11 @@ stdenv.mkDerivation rec {
     while read x ; do
       cp -r $x nix/store/
     done <$refs
-    rm -rf nix/store/*/{lib/*.a,lib/*.o,lib/pkgconfig,man/}
-    rm -rf nix/store/*/share/terminfo/[0-9a-ux-zA-Z]*  # keep "v" for vt100
+    rm -rf nix/store/*/{lib/*.a,lib/*.o,lib/pkgconfig,man/,share/man/}
+    #rm -rf nix/store/*/share/terminfo/[0-9a-uw-zA-Z]*  # keep "v" for vt100
+    for x in nix/store/*/share/terminfo ; do
+      ( cd $x && rm -rf [0-9a-uw-zA-Z]* && mv v w && mkdir v && mv w/{vt100,vt100-am} v/ && rm -rf w )
+    done
 
     mkdir bin
     ln -s bin sbin

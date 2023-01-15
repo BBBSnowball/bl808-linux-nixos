@@ -71,8 +71,9 @@ proc process_define_value {name value accept_words} {
   if {$accept_words && [regexp {\A\(?(\w+)\)?\Z} $value -> value2]} {
     set type word
     set value $value2
-  } elseif {$name eq $value || "($name)" eq $value} {
+  } elseif {$name eq $value || "($name)" eq $value || $name eq "IPC_CPU1_IPC_IUSR" && $value eq "IPC_AP_IPC_IUSR"} {
     set type identity
+    set value $name
   } elseif {$value eq ""} {
     set type empty
   } elseif {[catch {expr $value} value2] || ![string is wideinteger $value2]} {
@@ -198,7 +199,7 @@ dict for {name x} $defines {
 }
 
 set defines_no_fields {}
-set fields {}
+set regs {}
 set state 0
 set reg {}
 set field {}
@@ -206,15 +207,17 @@ dict for {name x} $defines {
   lassign $x type value
   if {$type eq "number" && [string match {*_OFFSET} $name]} {
     set state 1
-    set reg $name
+    set reg [regsub {_OFFSET$} $name {}]
     dict set defines_no_fields $name $x
+    dict set regs $reg offset $value
   } elseif {($state == 1 || $state == 2) && $type eq "identity"} {
+    dict unset defines_no_fields ${reg}_OFFSET
     set state 2
     set field $name
     foreach x {pos len msk umsk} {
       lassign [dict get $defines ${name}_[string toupper $x]] _ $x
     }
-    dict set fields $reg $name [dict create pos $pos len $len]
+    dict set regs $reg fields $name [dict create pos $pos len $len]
     if {$msk != (((1<<$len)-1)<<$pos) || $umsk != (((1<<64)-1) & ~$msk)} {
       puts "WARN: Mask for field [list $name] in [list $reg] is not as expected! ($msk != (((1<<$len)-1)<<$pos) || $umsk != (((1<<64)-1) & ~$msk))"
     }
@@ -223,39 +226,210 @@ dict for {name x} $defines {
     switch -- $suffix {
       POS - LEN - MSK - UMSK {}
       default {
-        puts [list DEBUG $suffix]
         dict set defines_no_fields $name $x
       }
     }
   } else {
+    if {$state == 1 && ![dict exists $regs $reg fields]} {
+      #dict unset regs $reg
+    }
     set state 0
     dict set defines_no_fields $name $x
   }
 }
 
 set py {}
-dict for {_ x} $enums {
-  dict for {name value} $x {
-    append py "$name = $value\n"
-  }
-}
 dict for {name x} $defines_no_fields {
   lassign $x type value
   if {$type eq "number"} {
     append py "$name = $value\n"
   }
 }
-append py {
-def deffield(reg, name, pos, len):
-  globals()[name+"_POS"] = pos
-  globals()[name+"_LEN"] = len
-}
-dict for {reg x} $fields {
-  dict for {field x} $x {
-    dict with x {}
-    append py [format "deffield(%s, \"%s\", %d, %d)\n" $reg $field $pos $len]
+dict for {_ x} $enums {
+  dict for {name value} $x {
+    append py "$name = $value\n"
   }
 }
+set f [open bl808_consts.py w]
+puts $f $py
+close $f
+
+set py {
+from reg_lib import *
+
+def consts():
+  import bl808_consts
+  return bl808_consts
+}
+
+# find *_BASE and *_END values and collect them in MemoryMap
+set bases {}
+append py "class MemoryMap(object):\n"
+dict for {name x} $defines_no_fields {
+  lassign $x type value
+  if {$type ne "number"} {continue}
+
+  if {[regexp {\A(.*)_BASE$\Z} $name -> name2]} {
+    dict set bases $name2 $value
+
+    if {[dict exists $defines_no_fields ${name2}_END]} {
+      lassign [dict get $defines_no_fields ${name2}_END] _ value2
+      append py "  $name2 = MemoryRegion(start=$value, end=$value2)\n"
+    } else {
+      append py "  $name = $value\n"
+    }
+  }
+}
+
+# generate classes for enums that have a common prefix in their value names
+set enum_prefix_used {}
+dict for {enum_name x} $enums {
+  dict for {name value} $x {break}
+  set parts [split $name _]
+  set match 0
+  for {set i [expr {[llength $parts]-1}]} {$i > 0} {incr i -1} {
+    set prefix [join [lrange $parts 0 $i-1] _]_
+    set match 1
+    dict for {name value} $x {
+      if {![string equal -length [string length $prefix] $prefix $name]} {
+        set match 0
+        break
+      }
+    }
+    if {$match} {break}
+  }
+
+  # use a different name for some 
+  dict for {name value} $x {break}
+  set changed_names {
+    SF_Ctrl_Pad_Type SF_CTRL_PAD
+    SF_Ctrl_Remap_Type SF_CTRL_REMAP
+    SF_Ctrl_RW_Type    SF_CTRL_RW
+    SF_Ctrl_IO_Type    SF_CTRL_IO
+    SF_Ctrl_Pad_Type   SF_CTRL_PAD
+    SF_Ctrl_Mode_Type  SF_CTRL_MODE
+    SF_Ctrl_AES_Key_Type  SF_CTRL_AES_BITS
+    SF_Ctrl_AES_Mode_Type SF_CTRL_AES_MODE
+    GLB_DSP_MUXPLL_320M_CLK_SEL_Type GLB_DSP_MUXPLL_SEL_320M
+    GLB_DSP_MUXPLL_240M_CLK_SEL_Type GLB_DSP_MUXPLL_SEL_240M
+    GLB_DSP_MUXPLL_160M_CLK_SEL_Type GLB_DSP_MUXPLL_SEL_160M
+    GLB_MCU_MUXPLL_80M_CLK_SEL_Type  GLB_DSP_MUXPLL_SEL_80M
+    GLB_EM_Type         GLB_EM
+    GLB_DMA_CLK_ID_Type GLB_DMA_CLK
+    PSRAM_Winbond_Drive_Strength PSRAM_DS
+    PSRAM_Burst_Type             PSRAM_BURST
+    PSRAM_ApMem_Refresh_Speed    PSRAM_REFRESH
+    PSRAM_Latency_ApMem_Type     PSRAM_LATENCY
+    PSRAM_Fixed_Latency_Enable   PSRAM_FIXED_LATENCY
+
+    BL_Err_Type  BL_RESULT
+    BL_Fun_Type  BL_FUN
+    BL_Sts_Type  BL_STS
+    BL_Mask_Type BL_MASK
+    ActiveStatus ACTIVE_STATUS
+    CCI_ID_Type  CCI_ID
+  }
+  if {[dict exists $changed_names $enum_name]} {
+    set clsname [dict get $changed_names $enum_name]
+  } else {
+    set clsname [string range $prefix 0 end-1]
+  }
+
+  if {!$match} {
+    if {![dict exists $changed_names $enum_name]} {
+      puts "INFO: No common prefix for $enum_name ($name)"
+      continue
+    } else {
+      set prefix ""
+    }
+  }
+
+  if {[dict exists $enum_prefix_used $clsname]} {
+    puts "WARN: Enum name [list $clsname] would be used by two enums! ([list $name / $enum_name and [dict get $enum_prefix_used $clsname]])"
+    continue
+  }
+  dict set enum_prefix_used $clsname [list $name / $enum_name]
+
+  append py "\nclass $clsname:\n"
+  dict for {name value} $x {
+    set name [string range $name [string length $prefix] end]
+    if {[string match {[0-9]*} $name]} {
+      set name [regsub {\A([^_]*_)*(?=[a-zA-Z])} $prefix {}]$name
+    }
+    append py "  $name = $value\n"
+  }
+}
+
+# generate register instances
+set regs2 $regs
+dict for {reg _} $regs2 {
+  dict set regs2 $reg peripheral {}
+}
+set base_name_mapping {
+  IPC0 IPC
+  IPC1 IPC
+  IPC2 IPC
+}
+set base_names [dict keys $bases]
+lappend base_names {*}[dict values $base_name_mapping]
+foreach base [lsort -unique $base_names] {
+  set prefix ${base}_
+  dict for {reg _} $regs2 {
+    if {[string equal -length [string length $prefix] $prefix $reg]} {
+      dict set regs2 $reg peripheral $base
+    }
+  }
+}
+dict set bases {} 0
+dict for {base address} $bases {
+  set base2 $base
+  set base [regsub {\A\Z} $base UNKNOWN]
+  if {[dict exists $base_name_mapping $base2]} {
+    set base2 [dict get $base_name_mapping $base2]
+  }
+  set prefix1 ${base}_
+  append py "\ndef _${base}_regs():\n  return \[\n"
+  set empty 1
+  dict for {reg x} $regs2 {
+    set fields {}
+    dict with x {}
+    if {$peripheral ne $base2} {continue}
+    set prefix2 ${reg}_
+    if {[string equal -length [string length $prefix1] $prefix1 $reg]} {
+      set reg2 [string range $reg [string length $prefix1] end]
+    } else {
+      set reg2 $reg
+    }
+    set empty 0
+    if {$reg ne $reg2} {
+      append py [format "    # %s\n" $reg]
+    }
+    append py [format "    Register(\"%s\", 0x%04x" $reg2 $offset]
+    dict for {name x} $fields {
+      dict with x {}
+      if {[string equal -length [string length $prefix2] $prefix2 $name]} {
+        set name [string range $name [string length $prefix2] end]
+      } elseif {[string equal -length [string length $prefix1] $prefix1 $name]} {
+        set name [string range $name [string length $prefix1] end]
+      }
+      regsub {\AREG_GPIO_\d+_|\AGPIO_\d+_|\AREG2_} $name {} name
+      append py [format ",\n      (\"%s\", %d, %d)" $name $pos $len]
+    }
+    append py "),\n"
+  }
+  append py "  \]\n"
+  append py "$base = Peripheral(\"$base\", $address, _${base}_regs)\n"
+}
+
+append py "\n"
+foreach name {CORE_ID_ADDRESS CORE_ID_M0 CORE_ID_D0 CORE_ID_LP IPC_SYNC_ADDR1 IPC_SYNC_ADDR2 IPC_SYNC_FLAG} {
+  lassign [dict get $defines_no_fields $name] type value
+  if {$type eq "number"} {
+    append py "$name = $value\n"
+  }
+}
+
 set f [open bl808_regs.py w]
 puts $f $py
 close $f
+
