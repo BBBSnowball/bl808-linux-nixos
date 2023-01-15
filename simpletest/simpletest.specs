@@ -1,0 +1,8 @@
+%rename lib	x_lib
+%rename link	x_link
+
+*lib:
+--start-group --end-group
+
+*link:
+-Tsimpletest.ld
