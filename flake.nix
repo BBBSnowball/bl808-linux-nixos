@@ -1,16 +1,3 @@
-# nix build -L . -o out
-# nix build -L .#bflb-tools -o result-tools
-# nix build -L .#keep-downloads -o keep-downloads
-# Flash out/low_load_bl808_{d0,m0}.bin using the GUI:
-#   nix run .#BLDevCube
-#   Step 2 in keep-downloads/prebuilt-linux/steps.md but use the files in ./out
-# Keep chip in bootloader mode and run:
-#   nix run .#bl808-linux-1-flash-img --port /dev/ttyUSB1
-#   (or: result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware out/whole_img_linux.bin  --single)
-# Open /dev/ttyUSB0 with baudrate 2000000, press reset button, wait for login prompt and login as root.
-#
-# Update only the rootfs:
-#   nix run .#bl808-linux-1-flash-rootfs
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
@@ -83,11 +70,12 @@
 
         bl808-rootfs
         bl808-rootfs-dir
+        bl808-regs-py
         prebuilt-linux
         bl808-linux-1
         bl808-linux-2;
 
-      default = packages.bl808-linux-1;
+      default = packages.bl808-linux-2;
 
       keep-downloads = with all-pkgs; let
         downloads = builtins.mapAttrs (k: v: v.src) {
