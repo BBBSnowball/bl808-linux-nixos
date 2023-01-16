@@ -25,12 +25,8 @@ Goals
   - Compile toolchain from source.
   - Apply patches on top of upstream Linux rather than using Bouffallo's copy without history.
   - Build the rootfs with packages from nixpkgs. Bouffallo's is a blob without any sources.
-  - TODO: Avoid closed-source GUI tools for flashing. Use Bouffallo's Python tools and remove prebuilt libraries (e.g. we don't have to support ck-link).
 - Have things working out-of-the-box, ideally with a single command (assuming nix is already installed).
-  - TODO: We still need the GUI to flash `low_load` because Bouffallo's CLI tools don't seem to be able to do this, yet.
-    (Or at least I couldn't get them to do it. They don't seem to support multi-core and even a single core doesn't start if I use those tools.)
-  - TODO: Fix exit code of Bouffallo's tools. This is ok for now because it works in the GUI and we only have one
-    flash command after that (i.e. the user is likely to notice errors).
+  - TODO: Test whether the whole-flash image works on a new board and if yes, update the README.
   - TODO: Or look into how much work it would be to make [blisp](https://github.com/pine64/blisp) work for bl808.
 - Essential drivers:
   - remoteproc
