@@ -1,5 +1,34 @@
 let
   ignoreForCallPackage = go: { outPath = "ignore for further callPackage"; inherit go; };
+
+  # delete all prebuilt executables and libraries
+  deblobify = drv: { runCommand, file, ... }: runCommand drv.name {
+    inherit drv file;
+    inherit (drv) pname version;
+    passthru.with-blobs = drv;
+
+    okToKeep = ''
+      /builtin_imgs/
+      /chips/.*/eflash_loader/eflash_loader
+      /bflb_iot_tool/img/
+      /bflb_mcu_tool/img/
+      [ ]text/\S+$
+      [ ]application/x-bytecode.python$
+      [ ]application/x-wine-extension-ini$
+      [ ]application/json$
+      [ ]inode/x-empty$
+    '';
+    passAsFile = [ "okToKeep" ];
+  } ''
+    cp -r $drv $out
+    chmod -R u+w $out
+    rm -rf $out/lib/python*/site-packages/*/utils/{cklink,genromfs,jlink,openocd/*.dll,openocd/*.exe}
+    find $out -type f -exec file --mime-type {} \+ >remaining
+    if grep -vEf $okToKeepPath <remaining || [ "$?" != "1" ] ; then
+      echo "Some unknown files are remaining after we have removed known-blobs. See above."
+      exit 1
+    fi
+  '';
 in
 {
   chrootenv = { nixpkgs, callPackage }: callPackage "${nixpkgs}/pkgs/build-support/build-fhs-userenv/chrootenv" {};
@@ -126,7 +155,7 @@ in
       chmod +x $out/bin/${pname}
     '';
   }));
-  bflb-mcu-tool = { python3Packages, bflb-common }: bflb-common.go rec {
+  bflb-mcu-tool-with-blobs = { python3Packages, bflb-common }: bflb-common.go rec {
     pname = "bflb-mcu-tool";
     version = "1.8.1";
     src = python3Packages.fetchPypi {
@@ -138,7 +167,7 @@ in
       ../patches/bflb-mcu-tool--fix-eflash-exitcode.patch
     ];
   };
-  bflb-iot-tool = { python3Packages, bflb-common }: bflb-common.go rec {
+  bflb-iot-tool-with-blobs = { python3Packages, bflb-common }: bflb-common.go rec {
     pname = "bflb-iot-tool";
     version = "1.8.1";
     src = python3Packages.fetchPypi {
@@ -172,4 +201,7 @@ in
       ../patches/bflb-iot-tool--fix-eflash-exitcode.patch
     ];
   };
+
+  bflb-mcu-tool = { bflb-mcu-tool-with-blobs, runCommand, file }@args: deblobify bflb-mcu-tool-with-blobs args;
+  bflb-iot-tool = { bflb-iot-tool-with-blobs, runCommand, file }@args: deblobify bflb-iot-tool-with-blobs args;
 }
