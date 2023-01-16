@@ -1,0 +1,122 @@
+diff -Naur a/bflb_iot_tool/core/bflb_iot_tool.py b/bflb_iot_tool/core/bflb_iot_tool.py
+--- a/bflb_iot_tool/core/bflb_iot_tool.py	2022-11-25 02:16:36.000000000 +0100
++++ b/bflb_iot_tool/core/bflb_iot_tool.py	2023-01-16 01:08:32.610341327 +0100
+@@ -2476,7 +2476,7 @@
+         return
+     act = "download"
+     obj_iot = BflbIotTool(chipname, chiptype)
+-    obj_iot.flasher_download_thread(chipname, chiptype, act, config)
++    return obj_iot.flasher_download_thread(chipname, chiptype, act, config)
+ 
+ 
+ def iot_download_cmd(args):
+@@ -2658,7 +2658,7 @@
+         act = "download"
+ 
+     obj_iot = BflbIotTool(chipname, chiptype)
+-    obj_iot.flasher_download_thread(chipname, chiptype, act, config)
++    res = obj_iot.flasher_download_thread(chipname, chiptype, act, config)
+     if act == "build":
+         f_org = os.path.join(chip_path, args.chipname, "img_create_iot", "whole_flash_data.bin")
+         f = "firmware.bin"
+@@ -2666,6 +2666,7 @@
+             shutil.copyfile(f_org, f)
+         except Exception as error:
+             pass
++    return res
+ 
+ 
+ def run(argv):
+@@ -2740,9 +2741,11 @@
+     else:
+         parser.set_defaults(func=iot_download_cmd)
+     args = parser.parse_args(argv)
+-    args.func(args)
++    return args.func(args)
+ 
+ 
+ if __name__ == '__main__':
+     print(sys.argv)
+-    run(sys.argv[1:])
++    res = run(sys.argv[1:])
++    if res is not True:
++        sys.exit(1)
+diff -Naur a/bflb_iot_tool/libs/bflb_eflash_loader.py b/bflb_iot_tool/libs/bflb_eflash_loader.py
+--- a/bflb_iot_tool/libs/bflb_eflash_loader.py	2022-11-24 03:35:50.000000000 +0100
++++ b/bflb_iot_tool/libs/bflb_eflash_loader.py	2023-01-16 01:08:39.047313741 +0100
+@@ -2539,7 +2539,7 @@
+             return bflb_utils.errorcode_msg(self._task_num)
+         except Exception as e:
+             bflb_utils.printf("efuse_flash_loader fail")
+-            #bflb_utils.printf(e)
++            bflb_utils.printf(e)
+             #traceback.print_exc(limit=NUM_ERR, file=sys.stdout)
+             if self._csv_data and self._csv_file:
+                 lock_file = open("lock.txt", 'w+')
+@@ -3567,6 +3567,7 @@
+     gol.chip_name = args.chipname
+     if conf_sign:
+         reload(cgc)
++    ret = False
+     while True:
+         try:
+             ret = eflash_loader_obj.efuse_flash_loader(args, None, None)
+@@ -3579,7 +3580,8 @@
+         time.sleep(0.2)
+         if not args.auto:
+             break
+-
++    return ret
+ 
+ if __name__ == '__main__':
+-    run()
++    if run() is not True:
++        sys.exit(1)
+diff -Naur a/bflb_iot_tool/libs/bflb_img_create.py b/bflb_iot_tool/libs/bflb_img_create.py
+--- a/bflb_iot_tool/libs/bflb_img_create.py	2022-11-24 03:35:51.000000000 +0100
++++ b/bflb_iot_tool/libs/bflb_img_create.py	2023-01-16 00:43:09.700047340 +0100
+@@ -185,10 +185,11 @@
+             cfg.write(img_create_cfg, 'w')
+         bflb_efuse_boothd_create.bootheader_create_process(
+             chipname, chiptype, bh_cfg_file, bh_file, img_create_path + "/bootheader_dummy.bin")
+-        img_create(args, chipname, chiptype, img_create_path, img_create_cfg)
++        return img_create(args, chipname, chiptype, img_create_path, img_create_cfg)
+     else:
+         bflb_utils.printf("Please set chipname config, exit")
+ 
+ 
+ if __name__ == '__main__':
+-    run()
++    if run() is not True:
++        sys.exit(1)
+diff -Naur a/bflb_iot_tool/libs/bflb_img_loader.py b/bflb_iot_tool/libs/bflb_img_loader.py
+--- a/bflb_iot_tool/libs/bflb_img_loader.py	2022-11-24 03:35:52.000000000 +0100
++++ b/bflb_iot_tool/libs/bflb_img_loader.py	2023-01-16 00:44:07.907845225 +0100
+@@ -716,6 +716,10 @@
+ if __name__ == '__main__':
+     img_load_t = BflbImgLoader()
+     if (len(sys.argv) == 3):
+-        img_load_t.img_load_process(sys.argv[1], 115200, 115200, sys.argv[2], "")
++        success, _, _ = img_load_t.img_load_process(sys.argv[1], 115200, 115200, sys.argv[2], "")
+     elif (len(sys.argv) == 4):
+-        img_load_t.img_load_process(sys.argv[1], 115200, 115200, sys.argv[2], sys.argv[3])
++        success, _, _ = img_load_t.img_load_process(sys.argv[1], 115200, 115200, sys.argv[2], sys.argv[3])
++    else:
++        success = False
++    if success is not True:
++        sys.exit(1)
+diff -Naur a/bflb_iot_tool/__main__.py b/bflb_iot_tool/__main__.py
+--- a/bflb_iot_tool/__main__.py	2022-11-25 02:23:12.000000000 +0100
++++ b/bflb_iot_tool/__main__.py	2023-01-16 01:12:03.855431996 +0100
+@@ -4,7 +4,10 @@
+ from core import bflb_iot_tool
+ 
+ def run_main():
+-    bflb_iot_tool.run(sys.argv[1:])
++    res = bflb_iot_tool.run(sys.argv[1:])
++    if res is not True:
++        sys.exit(1)
+ 
+ if __name__ == '__main__':
+     run_main()
++

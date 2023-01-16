@@ -1,0 +1,58 @@
+diff -Naur a/bflb_mcu_tool/core/bflb_mcu_tool.py b/bflb_mcu_tool/core/bflb_mcu_tool.py
+--- a/bflb_mcu_tool/core/bflb_mcu_tool.py	2022-11-24 07:19:53.000000000 +0100
++++ b/bflb_mcu_tool/core/bflb_mcu_tool.py	2023-01-16 01:17:34.859994937 +0100
+@@ -2625,7 +2625,7 @@
+             f = "firmware.bin"
+             shutil.copyfile(f_org, f)
+         else:
+-            obj_mcu.program_img_thread(config)
++            return obj_mcu.program_img_thread(config)
+     except Exception as e:
+         error = str(e)
+         bflb_utils.printf(error)
+@@ -2634,4 +2634,6 @@
+ 
+ if __name__ == '__main__':
+     print(sys.argv)
+-    run(sys.argv[1:])
++    res = run(sys.argv[1:])
++    if res is not True:
++        sys.exit(1)
+diff -Naur a/bflb_mcu_tool/libs/bflb_eflash_loader.py b/bflb_mcu_tool/libs/bflb_eflash_loader.py
+--- a/bflb_mcu_tool/libs/bflb_eflash_loader.py	2022-11-24 03:35:50.000000000 +0100
++++ b/bflb_mcu_tool/libs/bflb_eflash_loader.py	2023-01-16 01:19:34.306606810 +0100
+@@ -3567,6 +3567,7 @@
+     gol.chip_name = args.chipname
+     if conf_sign:
+         reload(cgc)
++    ret = False
+     while True:
+         try:
+             ret = eflash_loader_obj.efuse_flash_loader(args, None, None)
+@@ -3579,7 +3580,9 @@
+         time.sleep(0.2)
+         if not args.auto:
+             break
++    return ret
+ 
+ 
+ if __name__ == '__main__':
+-    run()
++    if run() is not True:
++        sys.exit(1)
+diff -Naur a/bflb_mcu_tool/__main__.py b/bflb_mcu_tool/__main__.py
+--- a/bflb_mcu_tool/__main__.py	2022-11-25 02:23:40.000000000 +0100
++++ b/bflb_mcu_tool/__main__.py	2023-01-16 01:23:57.224693309 +0100
+@@ -4,7 +4,9 @@
+ from core import bflb_mcu_tool
+ 
+ def run_main():
+-    bflb_mcu_tool.run(sys.argv[1:])
++    res = bflb_mcu_tool.run(sys.argv[1:])
++    if res is not True:
++        sys.exit(1)
+ 
+ if __name__ == '__main__':
+-    run_main()
+\ No newline at end of file
++    run_main()

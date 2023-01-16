@@ -107,8 +107,6 @@ in
     pythonRelaxDeps = [ "pycryptodome" "pylink-square" "portalocker" ];
     #NIX_DEBUG = 1;
 
-    #patches = [ ../patches/bflb_mcu_tool.patch ];
-
     prePatch = ''
       for x in setup.py *.egg-info/requires.txt ; do
         sed -i 's/\(portalocker\|pylink-square\|pycryptodome\)=[=0-9.]*/\1/' "$x"
@@ -135,6 +133,10 @@ in
       inherit pname version;
       hash = "sha256-bY5z6bXV2BAd38kjCHCfFd8H+ZXIFFfs0EC+i4mxG4s=";
     };
+
+    patches = [
+      ../patches/bflb-mcu-tool--fix-eflash-exitcode.patch
+    ];
   };
   bflb-iot-tool = { python3Packages, bflb-common }: bflb-common.go rec {
     pname = "bflb-iot-tool";
@@ -165,6 +167,9 @@ in
       chmod +x $out/bin/bflb_eflash_loader
     '';
 
-    patches = [ ../patches/bflb-iot-tool-1.8.1.patch ];
+    patches = [
+      ../patches/bflb-iot-tool--logfile-from-environ.patch
+      ../patches/bflb-iot-tool--fix-eflash-exitcode.patch
+    ];
   };
 }
