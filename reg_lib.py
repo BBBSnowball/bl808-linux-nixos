@@ -100,8 +100,8 @@ class Register(object):
     def value(self):
         return HexInt(self.ref.value32)
     @value.setter
-    def _set_value(self, value):
-        self.rev.value32 = value
+    def value(self, value):
+        self.ref.value32 = value
 
     @property
     def tmp(self):
@@ -237,4 +237,26 @@ class MemoryRegion(object):
 #            Register("gpio_8", 0x8e4, ("ie", 0, 1), ("oe", 6, 1), ("o", 24, 1)),
 #    ]
 #GLB = Peripheral("GLB", 0x20000000, _glb_regs)
+
+# hexdump --format '"%07.7_ax: " 4/4 "%08x " "\r\n"'
+# (If you want to read flash, do `SF_CTRL.regs.SF_ID1_OFFSET.ref.value32 = 0` and then read from 0x58000000
+#  but be aware that this will break further access to rootfs.)
+def hexdump(addr, length):
+    end = addr + length
+    prev = ""
+    star = False
+    for offset in range(addr, end, 16):
+        x = ""
+        for offset2 in range(offset, min(offset+16, end), 4):
+            x += " %08x" % mem32[offset2]
+        if x == prev:
+            if not star:
+                star = True
+                print("*")
+        else:
+            print("%08x:%s" % (offset, x))
+            prev = x
+            star = False
+    if star:
+        print("%08x:%s" % (offset, prev))
 

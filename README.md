@@ -16,22 +16,43 @@ instructions below.
 - Flash `low_load` binaries (from `result-linux` directory) according to the usual instructions.
 - Flash root image: `nix run github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash-img --port /dev/ttyUSB1`
 
+Even quicker start
+==================
+
+This will assume that you know how nix works and how to flash the M1s dock board. If not, consider reading the longer
+instructions below.
+
+NOTE: This has not been tested on a new board, yet. I have tested it after erasing the flash so there is a good chance
+that it will work.
+
+- TODO: Teach the Python script to make a bootheader for group1 and then create a one-step flash script (and fix the
+  remaining exit code issues in bflb-mcu-tool).
+- Connect M1s dock in bootloader mode and run:
+  `nix run github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash-all --port /dev/ttyUSB1`
+- Connect picocom to `/dev/ttyUSB0` with 2 Mbaud.
+- Press the RST button and login as "root" without password.
+
 Goals
 =====
 
-- Include all the tools that are needed, e.g. compilers and flash tools.
+- DONE: Include all the tools that are needed, e.g. compilers and flash tools.
   - This is using nix so everything will be pinned to known-good versions.
 - Get rid of as many "blobs" and non-standard repos as we can.
-  - Compile toolchain from source.
+  - DONE: Compile toolchain from source.
+  - DONE: Build the rootfs with packages from nixpkgs. Bouffallo's is a blob without any sources.
+  - DONE: We are using programming tools from Bouffallo but they are Open-Source (Python, MIT license). We remove some binaries
+    that would only be needed for alternative transports (ck-link, j-link).
   - Apply patches on top of upstream Linux rather than using Bouffallo's copy without history.
-  - Build the rootfs with packages from nixpkgs. Bouffallo's is a blob without any sources.
-- Have things working out-of-the-box, ideally with a single command (assuming nix is already installed).
-  - TODO: Test whether the whole-flash image works on a new board and if yes, update the README.
-  - TODO: Or look into how much work it would be to make [blisp](https://github.com/pine64/blisp) work for bl808.
+    - We can maybe remove the patches altogether because current Linux can handle ASIDs and T-Head's custom TLB bits
+      and we can let OpenSBI handle the UART.
+  - Boot without `low_load_d0` firmware by using OpenSBI's `FW_PAYLOAD` option. Use XIP for OpenSBI to save some RAM.
+- DONE: Have things working out-of-the-box, ideally with a single command (assuming nix is already installed).
 - Essential drivers:
   - remoteproc
     - communication between M0 and D0 cpus
     - load M0 firmware from Linux (if possible; my experiments haven't worked so far)
+      - If that doesn't work, find a way to provide the resource table, e.g. make a dummy-remoteproc driver and load an ELF
+        that only has that table.
     - Linux seems to support virtio over rpmsg channels so we can use this to bridge drivers in `bl_mcu_sdk` or `bl_iot_sdk`
       to Linux, e.g. wifi.
     - I would like to also have this for the LP cpu. It is smaller but it would still make an excellent real-time
@@ -303,11 +324,111 @@ Tale of a soft-bricked board
   - The CS pin is low-ish when entering the bootloader but it is high after programming. This is not unexpected because BOOT pulls
     it low and the bootloader probably doesn't drive it before it is told to talk to the flash.
   - We seem to indeed have auto-baud in the bootloader because it did reply on 115200 baud as well as 2 Mbaud.
-  - When erasing flash, there are single short pulses on CS. When writing data, there long pulses (tens of us) with short pulses around.
+  - When erasing flash, there are single short pulses on CS. When writing data, there long pulses (50 us) with short pulses around.
   - For normal boot in the broken state, I was seeing the kind of noise that is typical when the signal is faster than the scope can record,
     i.e. I think there were many short accesses.
   - Normal boot to Linux could be a mix of short and long pulses but I really cannot tell with any certainty with the cheap scope.
   - I don't notice any access to flash for things like `ls -l /bin/*`. This is because of the cache, of course, but it doesn't quite match
     my earlier experience when previously unused busybox applets weren't working as soon as the flash was "broken" (pinmux reconfigured).
     The list of symlinks should be all that is needed for that. I was using tmpfs - not enough to fill the RAM, I think, but maybe.
+
+Can we replace the Lab Dev GUI for programming?
+===============================================
+
+- It writes our programs to fixed offsets in flash but it does add some headers.
+  - The programs are padded by zeroes, I think to a multiple of 16 bytes.
+  - The printed sha-256 checksums match those of the files if we add the padding.
+- The `bootheader_group0.bin` and `bootheader_group1.bin` that are written to /tmp remain the same regardless of what we select for the MCU image.
+- Unfortunately, they differ from what is actually written and the header for group0 is much longer in flash.
+- We can read flash like this:
+  - `from bl808_regs import *; SF_CTRL.regs.SF_ID1_OFFSET.ref.value32 = 0`  (This will break further access to the rootfs.)
+  - `from reg_lib import hexdump; hexdump(0x58000000, 0x2010)`
+  - We want to compare it to the bootheader files so let's convert them to the same format:
+    `hexdump --format '"%07.7_ax: " 4/4 "%08x " "\r\n"' file.bin`
+- Group1 (D0):
+  - The length matches and the data is mostly the same but some parts are different.
+  - I add 16 zero bytes to `low_load_bl808_d0.bin`.
+  - 0x108c seems to be related to the length. It is increased by 16 with the longer firmware. In fact, it is really just the plain size.
+  - 0x1090 to 0x10b0 is completely different. This could be the hash. Indeed, it matches the sha-256 hash of the firmware.
+  - 0x115c is also quite different. I assume that this is some hash over the header.
+  - Both 0f 0x1090 and 0x115c are 0xdeadbeef in `bootheader_group1.bin`.
+- Group0 (M0):
+  - The length and hashes seem to be the same for group0 but there are additional changes from 0x00b0 to 0x0120 and there is lot of additional
+    data after the bootheader file (from 0x0160 to 0x560). The word at 0x560 could be another checksum.
+- Let's have a look at the Bouffallo tools.
+  - `bflb_iot_tool/libs/bl808/bootheader_cfg_keys.py`:
+    - There are lots of offsets.
+    - `bootcfg_start_pos` is 0x80.
+    - `group_image_offset` is 0x84. The data matches the offset of the payload in flash.
+    - `img_len_cnt` is 0x8c. This is were the length of the payload is stored.
+    - `hash_0` is at 0x90 and `hash_7` matches with the end of the sha-256 hash that we have seen.
+    - `bootcpucfg_start_pos` is 0xb0 so I guess the data after that is more configuration for the M0 core. This explains why we don't see this
+      for group1.
+    - Actually, there seems to be 24 bytes each for M0, D0 and LP but all in group0 regardless of which group the core is assigned to (I assume).
+    - I hope that we can start the LP core at runtime but this might be another way to do it. There even seem to be default values for some fields
+      although the core is disabled at the moment.
+    - `m0_image_address_offset` is set to zero and `m0_boot_entry` is set to 0x58000000. I would have expected it the other way around.
+    - `m0_msp_val` is probably the initial stack pointer. This is zero but that's ok because it is customary that the RISC-V init code sets this itself.
+    - Ah, actually, the config *is* in the group for the core. D0 has its enable set to zero in group0 and it is 1 in group1 and all the config is
+      in group1.
+    - `flashCfgTableAddr` is 0x160 so that's the data that is added after the bootheader. Well, at least part of it. It ends at 0x318 according to
+      the length field. Indeed, the pattern of numbers changes at that point. The last word is different so I assume that's another checksum.
+    - `patch_on_read` has only zeroes but `patch_on_jump` seems to have two entries.
+    - The last field is called `crc32`.
+    - I assume that most of this will match what we find in `efuse_bootheader_cfg.conf`.
+  - Section hash:
+    - `./libs/bflb_utils.py` has `get_crc32_bytearray` which calls `binascii.crc32`. The Python documentation says this:
+      "The algorithm is consistent with the ZIP file checksum."
+    - The checksum in group0 matches what `binascii.crc32` gives us for the whole block except the checksum.
+  - Flash config table:
+    - `segdata_file` refers to files like `chiptest_ipc_basic_D0.bin` but we don't seem to have those. That's probably not were the flashcfg table comes from.
+    - `flash_select_do.py` is looking at the files in `utils/flash`. There seem to be config files for various types of flash chips.
+    - They are selecting the correct file based on the JEDEC ID they read from the actual flash on the board.
+    - This means that we cannot (or rather should not) hardcode this data. If we do, we will run into trouble when a new batch of boards has a differnt
+      flash. It is quite common to buy these chips from more than one vendor (even before the current shortages).
+- Ok, we have to work with the tool, it seems.
+  - The only reason not to use it was the lack of dual-core support. We could fix that or we could program M0 (and the flash table) with the tool and
+    then handle group1 for D0 ourselves.
+  - Another option would be to check that there is a valid table in the expected position and leave it alone. If not, we can just program anything in
+    the normal way and the table will exist. We would need read access via the bootloader to check it and we don't have that.
+  - What happens when we flash the M0 firmware in `--mcu` mode? Will it write a different config? Maybe it even still boots?
+    - `./result-tools/bin/bflb-iot-tool --chipname bl808 --baudrate 2000000 --port /dev/ttyUSB1 --firmware result-2f/low_load_bl808_m0.bin`
+    - Nope. This is using completely different addresses.
+    - `./result-tools/bin/bflb-mcu-tool --chipname bl808 --baudrate 2000000 --port /dev/ttyUSB1 --firmware result-2f/low_load_bl808_m0.bin`
+    - This is looking good. In fact, this is looking *very* good. The hash for both parts matches what we got with the GUI.
+    - Does it boot? (after I fix the mess that I had created with the bflb-iot-too)
+      - Program M0 and D0 firmware with the GUI.
+      - Program M0 firmware with bflb-mcu-tool.
+      - Change flake.nix to use bflb-mcu-tool for flashing the image. -> Actuall, don't. It doesn't have `--single` mode.
+      - `nix run -L .#bl808-linux-2-flash-img`
+      - Now, we should have group0 programmed by bflb-mcu-tool, including flash config.
+      - And it *does* boot. Nice.
+      - Side node: I seem to be getting boot failures when I press the reset button for only a short time. Maybe the scope probe is shorting the pins
+        when I press the button..?
+    - Next check:
+      - `./result-tools/bin/bflb-mcu-tool --chipname bl808 --baudrate 2000000 --port /dev/ttyUSB1 --firmware result-2f/low_load_bl808_m0.bin --erase`
+        - "Flash Chip Erase All"
+        - This has regular, single spikes on CS. I would have assumed that there is an erase-all command (which should be faster than erasing individual
+          sectors). Or maybe there is and the CS is only polling the busy bit.
+        - "Chip erase time cost(ms): 36507.719482421875"
+      - `./result-tools/bin/bflb-iot-tool --chipname bl808 --baudrate 2000000 --port /dev/ttyUSB1 --addr 0x1000 --firmware x2.bin --single`
+        - Copy hexdump data, remove address, write to x2.txt.
+        - `python -c 'f = open("x2.txt"); x = f.read(); f.close(); import struct; x = struct.pack("<88I", *(int(y, 16) for y in x.split())); f = open("x2.bin", "wb"); f.write(x); f.close()'`
+        - `sha256sum -c <<<"3e67637e5dd98df5afc71563d7d02a42e94e1d3bbea47fb56e6e555b87f5a81b  x2.bin"`
+      - `./result-tools/bin/bflb-iot-tool --chipname bl808 --baudrate 2000000 --port /dev/ttyUSB1 --addr 0x52000 --firmware x3.bin --single`
+        - `cp result-2f/low_load_bl808_d0.bin x3.bin`
+        - `chmod u+w x3.bin`
+        - `echo -ne '\0\0\0\0' >>x3.bin`
+        - `sha256sum -c <<<"fb22a9bf164fd35fae9bec49b5c6af6a3e8df28eeaf4a912c5210735e367640f  x3.bin"`
+      - `nix run -L .#bl808-linux-2-flash-img`
+    - And it boots.
+- I read something about appending a checksum to the image. I should check whether there is a CRC32 after the firmware in flash.
+  - We have written the M0 firmware with bflb-mcu-tool so let's check that one.
+  - `hex(mem32[0x58000000+0x2000+0x95e0-4])` -> last word of the image
+  - `hex(mem32[0x58000000+0x2000+0x95e0])` -> 0xffffffff
+  - There doesn't seem to be any checksum.
+- Ok, so we do have a way to flash everything without using the GUI.
+  - We are using bflb-mcu-tool and bflb-iot-tool, which I found on Pypi.
+  - I don't know of any git repo for those tools or some way to contribute. This is not ideal.
+  - They do have a license file, which states that they are under MIT license. I guess this makes them even proper open source.
 
