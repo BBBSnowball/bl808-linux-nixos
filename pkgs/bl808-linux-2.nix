@@ -178,11 +178,31 @@ in {
       ln -s ${bl808-linux-2-kernel.modules}/ out/linux-modules
       cp -s ${bl808-rootfs} out/squashfs_test.img
       ( cd out && python3 ${../bl808-flash}/merge_7_5Mbin.py )
-      ( cd out && python3 ${../bl808-flash}/merge_7_5Mbin.py --type whole-flash --out whole_flash.bin )
     '';
   
     installPhase = ''
       cp -r out $out
     '';
   };
+
+  bl808-linux-2-flash-script = { bl808-linux-2, bflb-mcu-tool, bflb-iot-tool, writeShellScriptBin }:
+  (writeShellScriptBin "flash-bl808-linux-2" ''
+    files=${bl808-linux-2}
+    bflb_mcu_tool=${bflb-mcu-tool}/bin/bflb-mcu-tool
+    bflb_iot_tool=${bflb-iot-tool}/bin/bflb-iot-tool
+    flash_args=(--chipname bl808 --baudrate 2000000 --port /dev/ttyUSB1 "$@")
+
+    set -xe
+    $bflb_mcu_tool "''${flash_args[@]}" --firmware $files/low_load_bl808_m0.bin
+    $bflb_iot_tool "''${flash_args[@]}" --addr 0x1000 --firmware $files/bootheader_group1.bin --single
+    $bflb_iot_tool "''${flash_args[@]}" --addr 0x52000 --firmware $files/low_load_bl808_d0_padded.bin --single
+    $bflb_iot_tool "''${flash_args[@]}" --addr 0xd2000 --firmware $files/whole_img_linux.bin --single
+
+    : You can reset the board to boot into Linux. The console is on the first ttyUSB with 2 Mbaud.
+    : ELF files with debug symbols are in: $files/
+  '').overrideAttrs (old: {
+    buildCommand = old.buildCommand + ''
+      ln -s ${bl808-linux-2} $out/files
+    '';
+  });
 }

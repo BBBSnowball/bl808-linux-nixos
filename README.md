@@ -25,12 +25,10 @@ instructions below.
 NOTE: This has not been tested on a new board, yet. I have tested it after erasing the flash so there is a good chance
 that it will work.
 
-- TODO: Teach the Python script to make a bootheader for group1 and then create a one-step flash script (and fix the
-  remaining exit code issues in bflb-mcu-tool).
 - Connect M1s dock in bootloader mode and run:
-  `nix run github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash-all --port /dev/ttyUSB1`
+  `nix run github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash --port /dev/ttyUSB1`
 - Connect picocom to `/dev/ttyUSB0` with 2 Mbaud.
-- Press the RST button and login as "root" without password.
+- Press the RST button. You should see Linux booting. Login is "root" without password.
 
 Goals
 =====

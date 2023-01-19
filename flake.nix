@@ -73,7 +73,8 @@
         bl808-regs-py
         prebuilt-linux
         bl808-linux-1
-        bl808-linux-2;
+        bl808-linux-2
+        bl808-linux-2-flash-script;
 
       default = packages.bl808-linux-2;
 
@@ -163,9 +164,8 @@
         drv = packages.bflb-iot-tool;
         args = defaultFlashArgs ++ [ "--addr" "0xD2000" "--firmware" "${packages.bl808-linux-2}/whole_img_linux.bin" "--single" ];
       };
-      bl808-linux-2-flash-all-untested = mkAppWithArgs {
-        drv = packages.bflb-iot-tool;
-        args = defaultFlashArgs ++ [ "--addr" "0x0" "--firmware" "${packages.bl808-linux-2}/whole_flash.bin" "--single" ];
+      bl808-linux-2-flash = mkAppWithArgs {
+        drv = packages.bl808-linux-2-flash-script;
       };
     };
   });
