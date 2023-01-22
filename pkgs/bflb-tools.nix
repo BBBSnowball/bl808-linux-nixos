@@ -5,7 +5,10 @@ let
   deblobify = drv: { runCommand, file, ... }: runCommand drv.name {
     inherit drv file;
     inherit (drv) pname version;
-    passthru.with-blobs = drv;
+    passthru = {
+      with-blobs = drv;
+      inherit (drv) src;
+    };
 
     okToKeep = ''
       /builtin_imgs/
@@ -29,6 +32,8 @@ let
       exit 1
     fi
   '';
+
+  useChrootEnv = false;
 in
 {
   chrootenv = { nixpkgs, callPackage }: callPackage "${nixpkgs}/pkgs/build-support/build-fhs-userenv/chrootenv" {};
@@ -43,13 +48,13 @@ in
     runScript = "bash";
   };
 
-  init-env-for-flash-tools = { writeShellScript, bflb-flash-env, xorg, gnused, coreutils }:
-  writeShellScript "init-env-for-flash-tools" ''
+  init-env-for-flash-tools = { writeShellScript, bflb-flash-env, xorg, gnused, coreutils, lib, stdenv }:
+  writeShellScript "init-env-for-flash-tools" (lib.optionalString useChrootEnv ''
     for i in ${bflb-flash-env}/* /host/*; do
       path="/''${i##*/}"
       [ -e "$path" ] || ${coreutils}/bin/ln -s "$i" "$path"
     done
-
+  '' + ''
     set -e
 
     # create a writable copy of the Python package in /tmp because it will be
@@ -58,7 +63,7 @@ in
     cmd="$2"
     shift
     shift
-    pkgtmp=$(mktemp -td bflb-tmp.XXXXXXXX)
+    pkgtmp=$(${coreutils}/bin/mktemp -td bflb-tmp.XXXXXXXX)
     #cp -r "$pkg"/* "$pkgtmp"
     ${xorg.lndir}/bin/lndir -silent "$pkg" "$pkgtmp"
     chmod -R u+w "$pkgtmp/"
@@ -78,7 +83,9 @@ in
     source /etc/profile
     if [ -n "$DBG" ] ; then
       echo "DEBUG: pkgtmp=$pkgtmp"
-      strace -o "$pkgtmp/strace" -- "$pkgtmp/$cmd" "$@"
+      ${if stdenv.hostPlatform.isDarwin
+        then "$pkgtmp/$cmd" "$@"
+        else ''strace -o "$pkgtmp/strace" -- "$pkgtmp/$cmd" "$@"''}
       x=$?
       #rm -r "$pkgtmp"  # don't delete in debug mode
       exit $x
@@ -88,7 +95,7 @@ in
       rm -r "$pkgtmp"
       exit $x
     fi
-  '';
+  '');
 
   #NOTE We should use packageOverrides here but this is not so easy with the current structure of this flake.
   # see https://nixos.wiki/wiki/Overlays#Python_Packages_Overlay
@@ -129,7 +136,8 @@ in
     doCheck = false;
   };
 
-  bflb-common = { python3Packages, chrootenv, bash, init-env-for-flash-tools,
+  bflb-common = { python3Packages, bash, init-env-for-flash-tools,
+  #chrootenv,
   bflb-crypto-plus, pycklink, portalocker_2_0 }: ignoreForCallPackage ({ pname, ... }@args: python3Packages.buildPythonApplication (args // {
     # This doesn't seem to work for us.
     nativeBuildInputs = [ python3Packages.pythonRelaxDepsHook ];
@@ -149,9 +157,14 @@ in
     # no need to fixup binaries because they are prebuilt but we need fixup for the startup script
     #dontFixup = true;
 
+    #postInstall = (args.postInstall or "") + ''
+    #  mv $out/bin/${pname} $out/bin/.${pname}.unwrapped
+    #  ( echo "#! ${bash}/bin/bash"; echo "${chrootenv}/bin/chrootenv ${init-env-for-flash-tools} $out bin/.${pname}.unwrapped \"\$(pwd)\" \"\$@\"" ) >$out/bin/${pname}
+    #  chmod +x $out/bin/${pname}
+    #'';
     postInstall = (args.postInstall or "") + ''
       mv $out/bin/${pname} $out/bin/.${pname}.unwrapped
-      ( echo "#! ${bash}/bin/bash"; echo "${chrootenv}/bin/chrootenv ${init-env-for-flash-tools} $out bin/.${pname}.unwrapped \"\$(pwd)\" \"\$@\"" ) >$out/bin/${pname}
+      ( echo "#! ${bash}/bin/bash"; echo "${bash}/bin/bash ${init-env-for-flash-tools} $out bin/.${pname}.unwrapped \"\$(pwd)\" \"\$@\"" ) >$out/bin/${pname}
       chmod +x $out/bin/${pname}
     '';
   }));

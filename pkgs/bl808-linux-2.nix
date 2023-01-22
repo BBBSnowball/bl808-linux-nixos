@@ -126,7 +126,19 @@ in {
     '';
   };
 
-  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux-2 }:
+  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux-2, elf-header }:
+  let
+    kmod-supported = if !stdenv.buildPlatform.isDarwin then kmod else
+      # kmod is supposedly not supported for Darwin but we need it anyway
+      # -> see also this commit (which I found after fixing things myself. D'oh!):
+      #    https://github.com/NixOS/nixpkgs/pull/182714/files
+      kmod.overrideAttrs (old: {
+        meta = (builtins.removeAttrs old.meta ["platforms"]) // { unsupported = false; };
+        buildInputs = old.buildInputs ++ [ elf-header ];
+        makeFlags = [ "CFLAGS=-Werror-implicit-function-declaration -Werror-int-conversion" ];
+        patches = [ ../patches/kmod-on-darwin.patch ];
+      });
+  in
   stdenv.mkDerivation {
     name = "bl808-linux-2-linux";
 
@@ -137,7 +149,8 @@ in {
       hash = "sha256-OoxUMEviiZ68s94XyhIjs+KrgV735+Iimh/XpnL0bPU=";
     };
 
-    nativeBuildInputs = [ bison yacc flex bc lz4 kmod ];
+    nativeBuildInputs = [ bison yacc flex bc lz4 kmod-supported ];
+    inherit kmod-supported;
 
     outputs = [ "out" "modules" ];
 
@@ -146,7 +159,7 @@ in {
       LINUX_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-linux-2}/bin/riscv64-unknown-linux-gnu-
       cp c906.config .config
 
-      makeFlags=(ARCH=riscv CROSS_COMPILE=$LINUX_CROSS_PREFIX -j$NIX_BUILD_CORES INSTALL_MOD_PATH=$modules DEPMOD=${kmod}/bin/depmod)
+      makeFlags=(ARCH=riscv CROSS_COMPILE=$LINUX_CROSS_PREFIX -j$NIX_BUILD_CORES INSTALL_MOD_PATH=$modules DEPMOD=${kmod-supported}/bin/depmod)
       make ''${makeFlags[@]} Image modules
       lz4 -9 -f arch/riscv/boot/Image arch/riscv/boot/Image.lz4
     '';

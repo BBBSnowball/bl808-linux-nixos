@@ -74,6 +74,10 @@ rec {
         chmod -R u+w .
       '';
 
+      # https://github.com/riscv-collab/riscv-gnu-toolchain/issues/800#issuecomment-1155538932
+      # https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/commit/00eff86c79ee4da65e24223d5251bc6135856d36
+      patches = lib.optional stdenv.hostPlatform.isDarwin [ ../patches/gcc-11.3-on-darwin.patch ];
+
       configurePhase = ''
         patchShebangs .
         patchShebangs riscv-binutils/configure

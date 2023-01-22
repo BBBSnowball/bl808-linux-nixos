@@ -1,0 +1,449 @@
+diff -Naur a/configure b/configure
+--- a/configure	2023-01-22 06:48:18.037952807 +0100
++++ b/configure	2023-01-22 07:02:48.739773672 +0100
+@@ -8418,13 +8418,13 @@
+   *-darwin2* | *-darwin1[56789]*)
+     # For these versions, we default to using embedded rpaths.
+     if test "x$enable_darwin_at_rpath" != "xno"; then
+-      poststage1_ldflags="$poststage1_ldflags -nodefaultrpaths"
++      poststage1_ldflags="$poststage1_ldflags "
+     fi
+   ;;
+   *-darwin*)
+     # For these versions, we only use embedded rpaths on demand.
+     if test "x$enable_darwin_at_rpath" = "xyes"; then
+-      poststage1_ldflags="$poststage1_ldflags -nodefaultrpaths"
++      poststage1_ldflags="$poststage1_ldflags "
+     fi
+   ;;
+ esac
+diff -Naur a/configure.ac b/configure.ac
+--- a/configure.ac	2023-01-22 06:48:18.039014760 +0100
++++ b/configure.ac	2023-01-22 07:02:48.710764959 +0100
+@@ -1831,13 +1831,13 @@
+   *-darwin2* | *-darwin1[[56789]]*)
+     # For these versions, we default to using embedded rpaths.
+     if test "x$enable_darwin_at_rpath" != "xno"; then
+-      poststage1_ldflags="$poststage1_ldflags -nodefaultrpaths"
++      poststage1_ldflags="$poststage1_ldflags"
+     fi
+   ;;
+   *-darwin*)
+     # For these versions, we only use embedded rpaths on demand.
+     if test "x$enable_darwin_at_rpath" = "xyes"; then
+-      poststage1_ldflags="$poststage1_ldflags -nodefaultrpaths"
++      poststage1_ldflags="$poststage1_ldflags"
+     fi
+   ;;
+ esac
+diff -Naur a/gcc/ada/Makefile.rtl b/gcc/ada/Makefile.rtl
+--- a/gcc/ada/Makefile.rtl	2023-01-22 06:48:18.046153606 +0100
++++ b/gcc/ada/Makefile.rtl	2023-01-22 07:02:23.267179149 +0100
+@@ -2828,7 +2828,7 @@
+     GNATLIB_ADD_RPATHS =
+   else
+     GNATLIB_INSTALL_PREFIX = '@rpath'
+-    GNATLIB_ADD_RPATHS = -nodefaultrpaths -Wl,-rpath,@loader_path/,-rpath,@loader_path/.. \
++    GNATLIB_ADD_RPATHS =  -Wl,-rpath,@loader_path/,-rpath,@loader_path/.. \
+ 		-Wl,-rpath,@loader_path/../../../../
+   endif
+   GNATLIB_SHARED = gnatlib-shared-darwin
+diff -Naur a/libatomic/Makefile.am b/libatomic/Makefile.am
+--- a/libatomic/Makefile.am	2023-01-22 06:48:18.195626192 +0100
++++ b/libatomic/Makefile.am	2023-01-22 07:02:23.171472381 +0100
+@@ -66,7 +66,7 @@
+ endif
+ libatomic_version_info = -version-info $(libtool_VERSION)
+ if ENABLE_DARWIN_AT_RPATH
+-libatomic_darwin_rpath = -Wc,-nodefaultrpaths
++libatomic_darwin_rpath = 
+ libatomic_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ 
+diff -Naur a/libatomic/Makefile.in b/libatomic/Makefile.in
+--- a/libatomic/Makefile.in	2023-01-22 06:48:18.196164023 +0100
++++ b/libatomic/Makefile.in	2023-01-22 07:02:23.174667951 +0100
+@@ -404,7 +404,7 @@
+ @LIBAT_BUILD_VERSIONED_SHLIB_SUN_TRUE@@LIBAT_BUILD_VERSIONED_SHLIB_TRUE@libatomic_version_dep = libatomic.map-sun
+ libatomic_version_info = -version-info $(libtool_VERSION)
+ @ENABLE_DARWIN_AT_RPATH_TRUE@libatomic_darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@ \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ libatomic_la_LDFLAGS = $(libatomic_version_info) $(libatomic_version_script) \
+ 	$(lt_host_flags) $(libatomic_darwin_rpath) 
+diff -Naur a/libcc1/Makefile.am b/libcc1/Makefile.am
+--- a/libcc1/Makefile.am	2023-01-22 06:48:18.216111649 +0100
++++ b/libcc1/Makefile.am	2023-01-22 07:02:23.656979194 +0100
+@@ -56,7 +56,7 @@
+ 
+ libcc1plugin_la_LDFLAGS = -module -export-symbols $(srcdir)/libcc1plugin.sym
+ if ENABLE_DARWIN_AT_RPATH
+-libcc1plugin_la_LDFLAGS += -Wc,-nodefaultrpaths
++libcc1plugin_la_LDFLAGS += 
+ libcc1plugin_la_LDFLAGS += -Wl,-rpath,@loader_path
+ endif
+ libcc1plugin_la_SOURCES = libcc1plugin.cc context.cc context.hh \
+@@ -70,7 +70,7 @@
+ 
+ libcp1plugin_la_LDFLAGS = -module -export-symbols $(srcdir)/libcp1plugin.sym
+ if ENABLE_DARWIN_AT_RPATH
+-libcp1plugin_la_LDFLAGS += -Wc,-nodefaultrpaths
++libcp1plugin_la_LDFLAGS += 
+ libcp1plugin_la_LDFLAGS += -Wl,-rpath,@loader_path
+ endif
+ libcp1plugin_la_SOURCES = libcp1plugin.cc context.cc context.hh \
+@@ -85,7 +85,7 @@
+ LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
+ libcc1_la_LDFLAGS = -module -export-symbols $(srcdir)/libcc1.sym
+ if ENABLE_DARWIN_AT_RPATH
+-libcc1_la_LDFLAGS += -Wc,-nodefaultrpaths
++libcc1_la_LDFLAGS += 
+ libcc1_la_LDFLAGS += -Wl,-rpath,@loader_path
+ endif
+ libcc1_la_SOURCES = findcomp.cc libcc1.cc libcp1.cc \
+diff -Naur a/libcc1/Makefile.in b/libcc1/Makefile.in
+--- a/libcc1/Makefile.in	2023-01-22 06:48:18.216673605 +0100
++++ b/libcc1/Makefile.in	2023-01-22 07:02:23.658797603 +0100
+@@ -90,11 +90,11 @@
+ host_triplet = @host@
+ target_triplet = @target@
+ @DARWIN_DYNAMIC_LOOKUP_TRUE@am__append_1 = -Wl,-undefined,dynamic_lookup
+-@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_2 = -Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_2 =  \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+-@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_3 = -Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_3 =  \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+-@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_4 = -Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_4 =  \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ subdir = .
+ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
+diff -Naur a/libgcc/config/t-slibgcc-darwin b/libgcc/config/t-slibgcc-darwin
+--- a/libgcc/config/t-slibgcc-darwin	2023-01-22 06:48:20.694917919 +0100
++++ b/libgcc/config/t-slibgcc-darwin	2023-01-22 07:03:27.676389970 +0100
+@@ -35,7 +35,7 @@
+ 	-install_name $(SHLIB_RPATH)/$(SHLIB_INSTALL_NAME) \
+ 	-single_module -o $(SHLIB_DIR)/$(SHLIB_SONAME) \
+ 	-Wl,-exported_symbols_list,$(SHLIB_MAP) \
+-	$(SHLIB_VERSTRING) -nodefaultrpaths \
++	$(SHLIB_VERSTRING)  \
+ 	@multilib_flags@ @shlib_objs@ $(SHLIB_LC)
+ 
+ # we do our own thing
+@@ -73,7 +73,7 @@
+ 	$(CC) $(LIBGCC2_CFLAGS) $(LDFLAGS) -dynamiclib -nodefaultlibs \
+ 	-install_name $(SHLIB_RPATH)/$(EHS_INSTNAME) \
+ 	-o $(MULTIDIR)/libgcc_ehs$(SHLIB_EXT) $(SHLIB_VERSTRING) \
+-	-nodefaultrpaths $(LIBEHSOBJS) $(SHLIB_LC)
++	 $(LIBEHSOBJS) $(SHLIB_LC)
+ 
+ all: libgcc_ehs$(SHLIB_EXT)
+ 
+@@ -129,7 +129,7 @@
+ 	  cp ../$${mlib}/libgcc/$${mlib}/libgcc_ehs$(SHLIB_EXT)  \
+ 	    ./libgcc_ehs.$(SHLIB_SOVERSION)$(SHLIB_EXT)_T_$${mlib} || exit 1 ; \
+ 	  arch=`$(LIPO) -info libgcc_s.$(SHLIB_SOVERSION)$(SHLIB_EXT)_T_$${mlib} | sed -e 's/.*:\ //'` ; \
+-	  $(CC) -arch $${arch} -nodefaultlibs -dynamiclib -nodefaultrpaths \
++	  $(CC) -arch $${arch} -nodefaultlibs -dynamiclib  \
+ 	    $(SHLIB_LOADER_PATH) \
+ 	    -o libgcc_s.1$(SHLIB_EXT)_T_$${mlib} \
+ 	    -Wl,-reexport_library,libgcc_s.$(SHLIB_SOVERSION)$(SHLIB_EXT)_T_$${mlib} \
+@@ -149,7 +149,7 @@
+ 	  cp ../$${mlib}/libgcc/$${mlib}/libgcc_s$(SHLIB_EXT)  \
+ 	    ./libgcc_s.$(SHLIB_SOVERSION)$(SHLIB_EXT)_T_$${mlib} || exit 1 ; \
+ 	  arch=`$(LIPO) -info libgcc_s.$(SHLIB_SOVERSION)$(SHLIB_EXT)_T_$${mlib} | sed -e 's/.*:\ //'` ; \
+-	  $(CC) -arch $${arch} -nodefaultlibs -dynamiclib -nodefaultrpaths \
++	  $(CC) -arch $${arch} -nodefaultlibs -dynamiclib  \
+ 	    $(SHLIB_LOADER_PATH) \
+ 	    -o libgcc_s.1$(SHLIB_EXT)_T_$${mlib} \
+ 	    -Wl,-reexport_library,libgcc_s.$(SHLIB_SOVERSION)$(SHLIB_EXT)_T_$${mlib} \
+diff -Naur a/libgfortran/Makefile.am b/libgfortran/Makefile.am
+--- a/libgfortran/Makefile.am	2023-01-22 06:48:18.240380673 +0100
++++ b/libgfortran/Makefile.am	2023-01-22 07:02:23.259136141 +0100
+@@ -39,7 +39,7 @@
+ endif
+ extra_darwin_ldflags_libgfortran = @extra_ldflags_libgfortran@
+ if ENABLE_DARWIN_AT_RPATH
+-extra_darwin_ldflags_libgfortran += -Wc,-nodefaultrpaths 
++extra_darwin_ldflags_libgfortran +=  
+ extra_darwin_ldflags_libgfortran += -Wl,-rpath,@loader_path
+ endif
+ 
+diff -Naur a/libgfortran/Makefile.in b/libgfortran/Makefile.in
+--- a/libgfortran/Makefile.in	2023-01-22 06:48:18.243250202 +0100
++++ b/libgfortran/Makefile.in	2023-01-22 07:02:23.263645872 +0100
+@@ -91,7 +91,7 @@
+ build_triplet = @build@
+ host_triplet = @host@
+ target_triplet = @target@
+-@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_1 = -Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@am__append_1 =  \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ @LIBGFOR_MINIMAL_TRUE@am__append_2 = -DLIBGFOR_MINIMAL
+ @LIBGFOR_MINIMAL_FALSE@am__append_3 = \
+diff -Naur a/libgomp/Makefile.am b/libgomp/Makefile.am
+--- a/libgomp/Makefile.am	2023-01-22 06:48:18.251940083 +0100
++++ b/libgomp/Makefile.am	2023-01-22 07:02:23.649504559 +0100
+@@ -56,7 +56,7 @@
+ 
+ libgomp_version_info = -version-info $(libtool_VERSION)
+ if ENABLE_DARWIN_AT_RPATH
+-libgomp_darwin_rpath = -Wc,-nodefaultrpaths
++libgomp_darwin_rpath = 
+ libgomp_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ libgomp_la_LDFLAGS = $(libgomp_version_info) $(libgomp_version_script) \
+diff -Naur a/libgomp/Makefile.in b/libgomp/Makefile.in
+--- a/libgomp/Makefile.in	2023-01-22 06:48:18.252559289 +0100
++++ b/libgomp/Makefile.in	2023-01-22 07:02:23.651478342 +0100
+@@ -547,7 +547,7 @@
+ @LIBGOMP_BUILD_VERSIONED_SHLIB_SUN_TRUE@@LIBGOMP_BUILD_VERSIONED_SHLIB_TRUE@libgomp_version_dep = libgomp.ver-sun
+ libgomp_version_info = -version-info $(libtool_VERSION)
+ @ENABLE_DARWIN_AT_RPATH_TRUE@libgomp_darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@	 \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ libgomp_la_LDFLAGS = $(libgomp_version_info) $(libgomp_version_script) \
+         $(lt_host_flags) $(libgomp_darwin_rpath)
+diff -Naur a/libitm/Makefile.am b/libitm/Makefile.am
+--- a/libitm/Makefile.am	2023-01-22 06:48:18.258900762 +0100
++++ b/libitm/Makefile.am	2023-01-22 07:02:23.639888557 +0100
+@@ -55,7 +55,7 @@
+ libitm_la_DEPENDENCIES = $(libitm_version_dep)
+ libitm_la_LINK = $(LINK) $(libitm_la_LDFLAGS)
+ if ENABLE_DARWIN_AT_RPATH
+-libitm_darwin_rpath = -Wc,-nodefaultrpaths
++libitm_darwin_rpath = 
+ libitm_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ libitm_la_LDFLAGS = $(libitm_version_info) $(libitm_version_script) \
+diff -Naur a/libitm/Makefile.in b/libitm/Makefile.in
+--- a/libitm/Makefile.in	2023-01-22 06:48:18.259391760 +0100
++++ b/libitm/Makefile.in	2023-01-22 07:02:23.641710716 +0100
+@@ -482,7 +482,7 @@
+ libitm_la_DEPENDENCIES = $(libitm_version_dep)
+ libitm_la_LINK = $(LINK) $(libitm_la_LDFLAGS)
+ @ENABLE_DARWIN_AT_RPATH_TRUE@libitm_darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@	 \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ libitm_la_LDFLAGS = $(libitm_version_info) $(libitm_version_script) \
+   $(libitm_darwin_rpath)
+diff -Naur a/libobjc/configure b/libobjc/configure
+--- a/libobjc/configure	2023-01-22 06:48:18.270572089 +0100
++++ b/libobjc/configure	2023-01-22 07:02:48.722041287 +0100
+@@ -11214,7 +11214,7 @@
+     # obsolete.
+     extra_ldflags_libobjc='$(lt_host_flags)'
+     if test "x$enable_darwin_at_rpath" = "xyes"; then
+-      extra_ldflags_libobjc="${extra_ldflags_libobjc} -Wc,-nodefaultrpaths"
++      extra_ldflags_libobjc="${extra_ldflags_libobjc}"
+       extra_ldflags_libobjc="${extra_ldflags_libobjc} -Wl,-rpath,@loader_path"
+     fi
+     ;;
+diff -Naur a/libobjc/configure.ac b/libobjc/configure.ac
+--- a/libobjc/configure.ac	2023-01-22 06:48:18.271157003 +0100
++++ b/libobjc/configure.ac	2023-01-22 07:02:48.716347186 +0100
+@@ -185,7 +185,7 @@
+     # obsolete.
+     extra_ldflags_libobjc='$(lt_host_flags)'
+     if test "x$enable_darwin_at_rpath" = "xyes"; then
+-      extra_ldflags_libobjc="${extra_ldflags_libobjc} -Wc,-nodefaultrpaths"
++      extra_ldflags_libobjc="${extra_ldflags_libobjc}"
+       extra_ldflags_libobjc="${extra_ldflags_libobjc} -Wl,-rpath,@loader_path"
+     fi
+     ;;
+diff -Naur a/libquadmath/Makefile.am b/libquadmath/Makefile.am
+--- a/libquadmath/Makefile.am	2023-01-22 06:48:18.286271940 +0100
++++ b/libquadmath/Makefile.am	2023-01-22 07:02:23.697043278 +0100
+@@ -38,7 +38,7 @@
+ libquadmath_la_LIBADD = 
+ 
+ if ENABLE_DARWIN_AT_RPATH
+-libquadmath_darwin_rpath = -Wc,-nodefaultrpaths
++libquadmath_darwin_rpath = 
+ libquadmath_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ libquadmath_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+diff -Naur a/libquadmath/Makefile.in b/libquadmath/Makefile.in
+--- a/libquadmath/Makefile.in	2023-01-22 06:48:18.286679522 +0100
++++ b/libquadmath/Makefile.in	2023-01-22 07:02:23.699005853 +0100
+@@ -464,7 +464,7 @@
+ @BUILD_LIBQUADMATH_TRUE@@LIBQUAD_USE_SYMVER_SUN_TRUE@@LIBQUAD_USE_SYMVER_TRUE@version_dep = quadmath.map-sun
+ @BUILD_LIBQUADMATH_TRUE@toolexeclib_LTLIBRARIES = libquadmath.la
+ @BUILD_LIBQUADMATH_TRUE@libquadmath_la_LIBADD = 
+-@BUILD_LIBQUADMATH_TRUE@@ENABLE_DARWIN_AT_RPATH_TRUE@libquadmath_darwin_rpath = -Wc,-nodefaultrpaths \
++@BUILD_LIBQUADMATH_TRUE@@ENABLE_DARWIN_AT_RPATH_TRUE@libquadmath_darwin_rpath =  \
+ @BUILD_LIBQUADMATH_TRUE@@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ @BUILD_LIBQUADMATH_TRUE@libquadmath_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ @BUILD_LIBQUADMATH_TRUE@	$(version_arg) $(lt_host_flags) $(LIBM) $(libquadmath_darwin_rpath) 
+diff -Naur a/libsanitizer/asan/Makefile.am b/libsanitizer/asan/Makefile.am
+--- a/libsanitizer/asan/Makefile.am	2023-01-22 06:48:18.294357157 +0100
++++ b/libsanitizer/asan/Makefile.am	2023-01-22 07:02:23.223568539 +0100
+@@ -61,7 +61,7 @@
+ libasan_la_LIBADD += $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ 
+ if ENABLE_DARWIN_AT_RPATH
+-libasan_darwin_rpath = -Wc,-nodefaultrpaths
++libasan_darwin_rpath = 
+ libasan_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ libasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+diff -Naur a/libsanitizer/asan/Makefile.in b/libsanitizer/asan/Makefile.in
+--- a/libsanitizer/asan/Makefile.in	2023-01-22 06:48:18.294840821 +0100
++++ b/libsanitizer/asan/Makefile.in	2023-01-22 07:02:23.225492448 +0100
+@@ -466,7 +466,7 @@
+ 	$(top_builddir)/lsan/libsanitizer_lsan.la $(am__append_2) \
+ 	$(am__append_3) $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ @ENABLE_DARWIN_AT_RPATH_TRUE@libasan_darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@	 \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ libasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 	$(link_libasan) $(libasan_darwin_rpath)
+diff -Naur a/libsanitizer/hwasan/Makefile.am b/libsanitizer/hwasan/Makefile.am
+--- a/libsanitizer/hwasan/Makefile.am	2023-01-22 06:48:18.301404919 +0100
++++ b/libsanitizer/hwasan/Makefile.am	2023-01-22 07:02:23.218161062 +0100
+@@ -47,7 +47,7 @@
+ libhwasan_la_LIBADD += $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ 
+ if ENABLE_DARWIN_AT_RPATH
+-libhwasan_darwin_rpath = -nodefaultrpaths -Wl,-rpath,@loader_path/
++libhwasan_darwin_rpath =  -Wl,-rpath,@loader_path/
+ endif
+ libhwasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 	$(link_libhwasan) $(libhwasan_darwin_rpath)
+diff -Naur a/libsanitizer/hwasan/Makefile.in b/libsanitizer/hwasan/Makefile.in
+--- a/libsanitizer/hwasan/Makefile.in	2023-01-22 06:48:18.301987708 +0100
++++ b/libsanitizer/hwasan/Makefile.in	2023-01-22 07:02:23.220036262 +0100
+@@ -441,7 +441,7 @@
+ libhwasan_la_LIBADD =  \
+ 	$(top_builddir)/sanitizer_common/libsanitizer_common.la \
+ 	$(am__append_1) $(am__append_2) $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+-@ENABLE_DARWIN_AT_RPATH_TRUE@libhwasan_darwin_rpath = -nodefaultrpaths -Wl,-rpath,@loader_path/
++@ENABLE_DARWIN_AT_RPATH_TRUE@libhwasan_darwin_rpath =  -Wl,-rpath,@loader_path/
+ libhwasan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 	$(link_libhwasan) $(libhwasan_darwin_rpath)
+ 
+diff -Naur a/libsanitizer/lsan/Makefile.am b/libsanitizer/lsan/Makefile.am
+--- a/libsanitizer/lsan/Makefile.am	2023-01-22 06:48:18.303434202 +0100
++++ b/libsanitizer/lsan/Makefile.am	2023-01-22 07:02:23.210467969 +0100
+@@ -42,7 +42,7 @@
+ endif
+ liblsan_la_LIBADD += $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ if ENABLE_DARWIN_AT_RPATH
+-liblsan_darwin_rpath = -Wc,-nodefaultrpaths
++liblsan_darwin_rpath = 
+ liblsan_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ liblsan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+diff -Naur a/libsanitizer/lsan/Makefile.in b/libsanitizer/lsan/Makefile.in
+--- a/libsanitizer/lsan/Makefile.in	2023-01-22 06:48:18.303937992 +0100
++++ b/libsanitizer/lsan/Makefile.in	2023-01-22 07:02:23.212466294 +0100
+@@ -414,7 +414,7 @@
+ 	$(top_builddir)/interception/libinterception.la \
+ 	$(am__append_1) $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ @ENABLE_DARWIN_AT_RPATH_TRUE@liblsan_darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@	 \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ liblsan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 	$(link_liblsan) $(liblsan_darwin_rpath)
+diff -Naur a/libsanitizer/tsan/Makefile.am b/libsanitizer/tsan/Makefile.am
+--- a/libsanitizer/tsan/Makefile.am	2023-01-22 06:48:18.304824821 +0100
++++ b/libsanitizer/tsan/Makefile.am	2023-01-22 07:02:23.206339194 +0100
+@@ -59,7 +59,7 @@
+ endif
+ libtsan_la_LIBADD += $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ if ENABLE_DARWIN_AT_RPATH
+-libtsan_darwin_rpath = -nodefaultrpaths -Wl,-rpath,@loader_path/
++libtsan_darwin_rpath =  -Wl,-rpath,@loader_path/
+ endif
+ libtsan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 	$(link_libtsan) $(libtsan_darwin_rpath)
+diff -Naur a/libsanitizer/tsan/Makefile.in b/libsanitizer/tsan/Makefile.in
+--- a/libsanitizer/tsan/Makefile.in	2023-01-22 06:48:18.305299486 +0100
++++ b/libsanitizer/tsan/Makefile.in	2023-01-22 07:02:23.208521893 +0100
+@@ -465,7 +465,7 @@
+ 	$(top_builddir)/sanitizer_common/libsanitizer_common.la \
+ 	$(top_builddir)/interception/libinterception.la \
+ 	$(TSAN_TARGET_DEPENDENT_OBJECTS) $(am__append_2)
+-@ENABLE_DARWIN_AT_RPATH_TRUE@libtsan_darwin_rpath = -nodefaultrpaths -Wl,-rpath,@loader_path/
++@ENABLE_DARWIN_AT_RPATH_TRUE@libtsan_darwin_rpath =  -Wl,-rpath,@loader_path/
+ libtsan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 	$(link_libtsan) $(libtsan_darwin_rpath)
+ 
+diff -Naur a/libsanitizer/ubsan/Makefile.am b/libsanitizer/ubsan/Makefile.am
+--- a/libsanitizer/ubsan/Makefile.am	2023-01-22 06:48:18.305651484 +0100
++++ b/libsanitizer/ubsan/Makefile.am	2023-01-22 07:02:23.227267190 +0100
+@@ -37,7 +37,7 @@
+ endif
+ libubsan_la_LIBADD += $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ if ENABLE_DARWIN_AT_RPATH
+-libubsan_darwin_rpath = -Wc,-nodefaultrpaths
++libubsan_darwin_rpath = 
+ libubsan_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ libubsan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+diff -Naur a/libsanitizer/ubsan/Makefile.in b/libsanitizer/ubsan/Makefile.in
+--- a/libsanitizer/ubsan/Makefile.in	2023-01-22 06:48:18.306259524 +0100
++++ b/libsanitizer/ubsan/Makefile.in	2023-01-22 07:02:23.228982308 +0100
+@@ -401,7 +401,7 @@
+ 	$(top_builddir)/sanitizer_common/libsanitizer_common.la \
+ 	$(am__append_1) $(am__append_2) $(LIBSTDCXX_RAW_CXX_LDFLAGS)
+ @ENABLE_DARWIN_AT_RPATH_TRUE@libubsan_darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@	 \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ libubsan_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 	$(link_libubsan) $(libubsan_darwin_rpath)
+diff -Naur a/libssp/Makefile.am b/libssp/Makefile.am
+--- a/libssp/Makefile.am	2023-01-22 06:48:18.306680939 +0100
++++ b/libssp/Makefile.am	2023-01-22 07:02:23.242703626 +0100
+@@ -50,7 +50,7 @@
+ libssp_la_LIBADD = 
+ libssp_la_DEPENDENCIES = $(version_dep) $(libssp_la_LIBADD)
+ if ENABLE_DARWIN_AT_RPATH
+-libssp_darwin_rpath = -Wc,-nodefaultrpaths
++libssp_darwin_rpath = 
+ libssp_darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ libssp_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+diff -Naur a/libssp/Makefile.in b/libssp/Makefile.in
+--- a/libssp/Makefile.in	2023-01-22 06:48:18.307137812 +0100
++++ b/libssp/Makefile.in	2023-01-22 07:02:23.244841534 +0100
+@@ -377,7 +377,7 @@
+ libssp_la_LIBADD = 
+ libssp_la_DEPENDENCIES = $(version_dep) $(libssp_la_LIBADD)
+ @ENABLE_DARWIN_AT_RPATH_TRUE@libssp_darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@	 \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ libssp_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` \
+ 		    $(version_arg) $(lt_host_flags) $(libssp_darwin_rpath)
+diff -Naur a/libstdc++-v3/src/Makefile.am b/libstdc++-v3/src/Makefile.am
+--- a/libstdc++-v3/src/Makefile.am	2023-01-22 06:48:18.327843434 +0100
++++ b/libstdc++-v3/src/Makefile.am	2023-01-22 07:02:23.579157935 +0100
+@@ -134,7 +134,7 @@
+ 	$(top_builddir)/src/c++20/libc++20convenience.la
+ 
+ if ENABLE_DARWIN_AT_RPATH
+-libstdc___darwin_rpath = -Wc,-nodefaultrpaths
++libstdc___darwin_rpath = 
+ libstdc___darwin_rpath += -Wl,-rpath,@loader_path
+ endif
+ 
+diff -Naur a/libstdc++-v3/src/Makefile.in b/libstdc++-v3/src/Makefile.in
+--- a/libstdc++-v3/src/Makefile.in	2023-01-22 06:48:18.328216891 +0100
++++ b/libstdc++-v3/src/Makefile.in	2023-01-22 07:02:23.584799286 +0100
+@@ -547,7 +547,7 @@
+ 	$(top_builddir)/src/c++20/libc++20convenience.la
+ 
+ @ENABLE_DARWIN_AT_RPATH_TRUE@libstdc___darwin_rpath =  \
+-@ENABLE_DARWIN_AT_RPATH_TRUE@	-Wc,-nodefaultrpaths \
++@ENABLE_DARWIN_AT_RPATH_TRUE@	 \
+ @ENABLE_DARWIN_AT_RPATH_TRUE@	-Wl,-rpath,@loader_path
+ libstdc___la_LDFLAGS = \
+ 	-version-info $(libtool_VERSION) ${version_arg} -lm $(libstdc___darwin_rpath)

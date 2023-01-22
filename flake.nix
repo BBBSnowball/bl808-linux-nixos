@@ -6,7 +6,7 @@
   let
     #defaultSystems = flake-utils.lib.defaultSystems;
     # -> no darwin, for now, because it doesn't support chrootenv (and libstdcxx5)
-    defaultSystems = ["aarch64-linux" "x86_64-linux"];
+    defaultSystems = ["aarch64-linux" "x86_64-linux" "aarch64-darwin"];
   
     callPackageIfFunction = callPackage: x: extra:
       with builtins;

@@ -1,0 +1,236 @@
+diff --git a/Makefile.am b/Makefile.am
+index 194e111..0a095b5 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -80,8 +80,7 @@ EXTRA_DIST += libkmod/README \
+ 	libkmod/COPYING testsuite/COPYING tools/COPYING COPYING
+ 
+ libkmod_libkmod_la_LDFLAGS = $(AM_LDFLAGS) \
+-	-version-info $(LIBKMOD_CURRENT):$(LIBKMOD_REVISION):$(LIBKMOD_AGE) \
+-	-Wl,--version-script=$(top_srcdir)/libkmod/libkmod.sym
++	-version-info $(LIBKMOD_CURRENT):$(LIBKMOD_REVISION):$(LIBKMOD_AGE)
+ libkmod_libkmod_la_DEPENDENCIES = \
+ 	shared/libshared.la \
+ 	${top_srcdir}/libkmod/libkmod.sym
+@@ -91,8 +90,7 @@ libkmod_libkmod_la_LIBADD = \
+ 
+ noinst_LTLIBRARIES += libkmod/libkmod-internal.la
+ libkmod_libkmod_internal_la_SOURCES = $(libkmod_libkmod_la_SOURCES)
+-libkmod_libkmod_internal_la_LDFLAGS = $(AM_LDFLAGS) \
+-	-Wl,--version-script=$(top_srcdir)/libkmod/libkmod.sym
++libkmod_libkmod_internal_la_LDFLAGS = $(AM_LDFLAGS)
+ libkmod_libkmod_internal_la_DEPENDENCIES  = $(libkmod_libkmod_la_DEPENDENCIES)
+ libkmod_libkmod_internal_la_LIBADD = $(libkmod_libkmod_la_LIBADD)
+ 
+diff -aur a/libkmod/libkmod-module.c b/libkmod/libkmod-module.c
+--- a/libkmod/libkmod-module.c	1970-01-01 01:00:01.000000000 +0100
++++ b/libkmod/libkmod-module.c	2023-01-22 04:17:45.029410427 +0100
+@@ -849,7 +849,8 @@
+ 	flags &= KMOD_REMOVE_FORCE;
+ 	flags |= KMOD_REMOVE_NOWAIT;
+ 
+-	err = delete_module(mod->name, flags);
++	//err = delete_module(mod->name, flags);
++	err = -1;
+ 	if (err != 0) {
+ 		err = -errno;
+ 		if (!(libkmod_flags & KMOD_REMOVE_NOLOG))
+@@ -942,7 +943,8 @@
+ 	}
+ 	size = kmod_file_get_size(mod->file);
+ 
+-	err = init_module(mem, size, args);
++	//err = init_module(mem, size, args);
++	err = -1;
+ init_finished:
+ 	if (err < 0) {
+ 		err = -errno;
+diff -aur a/libkmod/libkmod-signature.c b/libkmod/libkmod-signature.c
+--- a/libkmod/libkmod-signature.c	1970-01-01 01:00:01.000000000 +0100
++++ b/libkmod/libkmod-signature.c	2023-01-22 03:44:13.820333903 +0100
+@@ -17,7 +17,7 @@
+  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+  */
+ 
+-#include <endian.h>
++#include <machine/endian.h>
+ #include <inttypes.h>
+ #ifdef ENABLE_OPENSSL
+ #include <openssl/pkcs7.h>
+diff -aur a/shared/missing.h b/shared/missing.h
+--- a/shared/missing.h	1970-01-01 01:00:01.000000000 +0100
++++ b/shared/missing.h	2023-01-22 03:46:07.464535918 +0100
+@@ -45,8 +45,9 @@
+ #endif
+ 
+ #if !HAVE_DECL_BE32TOH
+-#include <endian.h>
+-#include <byteswap.h>
++#include <machine/endian.h>
++#include <libkern/OSByteOrder.h>
++#define bswap_32(x) OSSwapInt32(x)
+ #if __BYTE_ORDER == __LITTLE_ENDIAN
+ #define be32toh(x) bswap_32 (x)
+ #else
+diff -aur a/shared/util.c b/shared/util.c
+--- a/shared/util.c	1970-01-01 01:00:01.000000000 +0100
++++ b/shared/util.c	2023-01-22 04:34:31.414407436 +0100
+@@ -370,7 +370,9 @@
+ 	if (path_is_absolute(p))
+ 		return strdup(p);
+ 
+-	cwd = get_current_dir_name();
++	//cwd = get_current_dir_name();
++	static char cwd2[PATH_MAX];
++	cwd = getcwd(cwd2, sizeof(cwd2));
+ 	if (!cwd)
+ 		return NULL;
+ 
+@@ -484,11 +486,12 @@
+ 
+ int sleep_until_msec(unsigned long long msec)
+ {
++	msec -= now_msec();
+ 	struct timespec ts = msec_ts(msec);
+ 
+-	if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) < 0 &&
+-	    errno != EINTR)
+-		return -errno;
++//	if (clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL) < 0 &&
++//	    errno != EINTR)
++//		return -errno;
+ 
+ 	return 0;
+ }
+diff -aur a/shared/util.h b/shared/util.h
+--- a/shared/util.h	1970-01-01 01:00:01.000000000 +0100
++++ b/shared/util.h	2023-01-22 04:29:20.775319778 +0100
+@@ -8,6 +8,7 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <time.h>
++#include <libgen.h>
+ 
+ #include <shared/macro.h>
+ 
+diff -aur a/tools/depmod.c b/tools/depmod.c
+--- a/tools/depmod.c	1970-01-01 01:00:01.000000000 +0100
++++ b/tools/depmod.c	2023-01-22 03:00:27.276621307 +0100
+@@ -108,7 +108,7 @@
+ 		"\t                     current kernel symbols.\n"
+ 		"\t-E, --symvers=FILE   Use Module.symvers file to check\n"
+ 		"\t                     symbol versions.\n",
+-		program_invocation_short_name);
++		"??");
+ }
+ 
+ _printf_format_(1, 2)
+diff -aur a/tools/insmod.c b/tools/insmod.c
+--- a/tools/insmod.c	1970-01-01 01:00:01.000000000 +0100
++++ b/tools/insmod.c	2023-01-22 02:53:31.117983958 +0100
+@@ -43,7 +43,7 @@
+ 		"Options:\n"
+ 		"\t-V, --version     show version\n"
+ 		"\t-h, --help        show this help\n",
+-		program_invocation_short_name);
++		"??");
+ }
+ 
+ static const char *mod_strerror(int err)
+diff -aur a/tools/kmod.c b/tools/kmod.c
+--- a/tools/kmod.c	1970-01-01 01:00:01.000000000 +0100
++++ b/tools/kmod.c	2023-01-22 02:52:08.409927187 +0100
+@@ -170,6 +170,11 @@
+ {
+ 	int err;
+ 
++	char* program_invocation_short_name = argv[0];
++	char* x = strrchr(program_invocation_short_name, '/');
++        if (x)
++		program_invocation_short_name = x+1;
++
+ 	if (streq(program_invocation_short_name, "kmod"))
+ 		err = handle_kmod_commands(argc, argv);
+ 	else
+diff -aur a/tools/log.c b/tools/log.c
+--- a/tools/log.c	1970-01-01 01:00:01.000000000 +0100
++++ b/tools/log.c	2023-01-22 03:01:22.528494222 +0100
+@@ -88,7 +88,7 @@
+ 			program_invocation_short_name, prioname, file, line,
+ 			fn, str);
+ #else
+-		fprintf(stderr, "%s: %s: %s", program_invocation_short_name,
++		fprintf(stderr, "%s: %s: %s", "??",
+ 			prioname, str);
+ #endif
+ 	}
+@@ -101,7 +101,7 @@
+ 	log_use_syslog = use_syslog;
+ 
+ 	if (log_use_syslog)
+-		openlog(program_invocation_short_name, LOG_CONS, LOG_DAEMON);
++		openlog("kmod", LOG_CONS, LOG_DAEMON);
+ }
+ 
+ void log_close(void)
+@@ -132,7 +132,7 @@
+ 	if (log_use_syslog)
+ 		syslog(prio, "%s: %s", prioname, msg);
+ 	else
+-		fprintf(stderr, "%s: %s: %s", program_invocation_short_name,
++		fprintf(stderr, "%s: %s: %s", "??",
+ 			prioname, msg);
+ 	free(msg);
+ 
+diff -aur a/tools/modinfo.c b/tools/modinfo.c
+--- a/tools/modinfo.c	1970-01-01 01:00:01.000000000 +0100
++++ b/tools/modinfo.c	2023-01-22 02:53:46.484511693 +0100
+@@ -370,7 +370,7 @@
+ 		"\t-b, --basedir=DIR           Use DIR as filesystem root for /lib/modules\n"
+ 		"\t-V, --version               Show version\n"
+ 		"\t-h, --help                  Show this help\n",
+-		program_invocation_short_name);
++		"??");
+ }
+ 
+ static bool is_module_filename(const char *name)
+diff -aur a/tools/modprobe.c b/tools/modprobe.c
+--- a/tools/modprobe.c	1970-01-01 01:00:01.000000000 +0100
++++ b/tools/modprobe.c	2023-01-22 03:47:04.293968927 +0100
+@@ -150,9 +150,9 @@
+ 		"\t-v, --verbose               enables more messages\n"
+ 		"\t-V, --version               show version\n"
+ 		"\t-h, --help                  show this help\n",
+-		program_invocation_short_name, program_invocation_short_name,
+-		program_invocation_short_name, program_invocation_short_name,
+-		program_invocation_short_name, program_invocation_short_name);
++		"??", "??",
++		"??", "??",
++		"??", "??");
+ }
+ 
+ _printf_format_(1, 2)
+diff -aur a/tools/rmmod.c b/tools/rmmod.c
+--- a/tools/rmmod.c	1970-01-01 01:00:01.000000000 +0100
++++ b/tools/rmmod.c	2023-01-22 02:53:10.568446306 +0100
+@@ -58,7 +58,7 @@
+ 		"\t-v, --verbose     enables more messages\n"
+ 		"\t-V, --version     show version\n"
+ 		"\t-h, --help        show this help\n",
+-		program_invocation_short_name);
++		"??");
+ }
+ 
+ static int check_module_inuse(struct kmod_module *mod) {
+diff -aur a/tools/static-nodes.c b/tools/static-nodes.c
+--- a/tools/static-nodes.c	2023-01-22 03:07:29.954230988 +0100
++++ b/tools/static-nodes.c	2023-01-22 03:01:38.728243072 +0100
+@@ -143,7 +143,7 @@
+ 	       "\t-h, --help           show this help\n"
+ 	       "\n"
+ 	       "Formats:\n",
+-	 program_invocation_short_name);
++	 "??");
+ 
+ 	for (i = 0; i < ARRAY_SIZE(static_nodes_formats); i++) {
+ 		if (static_nodes_formats[i]->description != NULL) {
