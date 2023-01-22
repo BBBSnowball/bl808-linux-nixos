@@ -76,7 +76,7 @@
         bl808-linux-2
         bl808-linux-2-flash-script;
 
-      default = packages.bl808-linux-2;
+      default = packages.bl808-linux-2-flash-script;
 
       keep-downloads = with all-pkgs; let
         downloads = builtins.mapAttrs (k: v: v.src) {
