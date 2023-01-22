@@ -5,7 +5,10 @@ let
   deblobify = drv: { runCommand, file, ... }: runCommand drv.name {
     inherit drv file;
     inherit (drv) pname version;
-    passthru.with-blobs = drv;
+    passthru = {
+      with-blobs = drv;
+      inherit (drv) src;
+    };
 
     okToKeep = ''
       /builtin_imgs/
