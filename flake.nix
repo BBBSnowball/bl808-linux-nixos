@@ -146,6 +146,27 @@
         runScript = "bash";
         extraOutputsToInstall = [ "dev" ];
       };
+
+      buildroot-dev-env = pkgs.buildFHSUserEnv {
+        name = "build-env";
+        targetPkgs = pkgs: with pkgs; [
+          gnumake gcc file unzip file bc openssl gnulib glibc zlib
+          python3
+          #pkgsCross.riscv64.libxcrypt
+          #(libxcrypt.overrideAttrs (_: { postInstall = ''rm $out/lib/*.so* -f''; }))
+          ((import nixpkgs {
+            inherit system;
+            crossSystem = pkgs.lib.systems.examples.riscv64 // {
+              gcc.arch = "rv64imac";
+            };
+          }).libxcrypt)
+        ];
+        multiPkgs = pkgs: with pkgs; [
+          glibc
+        ];
+        runScript = "bash";
+        extraOutputsToInstall = [ "dev" ];
+      };
     };
 
     checks = {
@@ -157,6 +178,7 @@
 
     devShells = {
       default = packages.bl808-dev-env.env;
+      buildroot = packages.buildroot-dev-env.env;
       #TODO maybe add a shell with bflb-tools?
     };
 
