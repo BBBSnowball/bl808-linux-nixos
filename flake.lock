@@ -34,7 +34,25 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "uboot": "uboot"
+      }
+    },
+    "uboot": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1676736779,
+        "narHash": "sha256-5JRCay0Sl3h2R+EKy1dQdi7noMKYlmZ5STNveC4NQuI=",
+        "owner": "madushan1000",
+        "repo": "u-boot",
+        "rev": "a376f406bb5e3b0e2a60ccec25cb22d320f62b41",
+        "type": "github"
+      },
+      "original": {
+        "owner": "madushan1000",
+        "ref": "bl808/usb-udc",
+        "repo": "u-boot",
+        "type": "github"
       }
     }
   },

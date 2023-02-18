@@ -1,0 +1,11 @@
+diff -Naur a/libuuu/config.cpp b/libuuu/config.cpp
+--- a/libuuu/config.cpp	1970-01-01 01:00:01.000000000 +0100
++++ b/libuuu/config.cpp	2023-02-18 22:17:45.736782988 +0100
+@@ -80,6 +80,7 @@
+ 	emplace_back(ConfigItem{"FB:", nullptr, nullptr,  BD_VID, 0x0001});
+ 	emplace_back(ConfigItem{"FB:", nullptr, nullptr,  NXP_VID, 0x0152});
+ 	emplace_back(ConfigItem{"FB:", nullptr, nullptr,  0x0483, 0x0afb});
++	emplace_back(ConfigItem{"FB:", nullptr, nullptr,  0x18d1, 0x4e40});
+ }
+ 
+ int uuu_for_each_cfg(uuu_show_cfg fn, void *p)

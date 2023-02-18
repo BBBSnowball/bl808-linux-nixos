@@ -1,6 +1,13 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
-  inputs.flake-utils.url = "github:numtide/flake-utils";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+    flake-utils.url = "github:numtide/flake-utils";
+
+    uboot = {
+      url = "github:madushan1000/u-boot/bl808/usb-udc";
+      flake = false;
+    };
+  };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
   let
@@ -35,6 +42,25 @@
         bl808-rootfs = final.callPackage ./pkgs/bl808-rootfs.nix { };
         bl808-rootfs-dir = final.callPackage ./pkgs/bl808-rootfs.nix { asDir = true; };
         prebuilt-linux = final.callPackage ./pkgs/prebuilt-linux.nix { };
+        uboot = final.callPackage ./pkgs/uboot.nix { source = self.inputs.uboot; };
+        #musl = if final.stdenv.hostPlatform.system != "riscv32-linux" then prev.musl else
+        #prev.musl.overrideAttrs (old: {
+        #  postPatch = (old.postPatch or "") + ''
+        #    substituteInPlace configure --replace "riscv64" "riscv32"
+        #    ln -s riscv64 arch/riscv32
+        #  '';
+        #});
+        nxpmicro-mfgtools = prev.nxpmicro-mfgtools.overrideAttrs (_: {
+          # We are using a newer version here but that's probably not necessary.
+          version = "1.5.21";
+          src = final.fetchFromGitHub {
+            owner = "nxp-imx";
+            repo = "mfgtools";
+            rev = "uuu_1.5.21";
+            hash = "sha256-XVvGsHltlA3h9hd3C88G3s2wIZ1EVM6DmvdiwD82vTw=";
+          };
+          patches = [ ./patches/nxpmicro-mfgtools--add-our-usb-vid-pid.patch ];
+        });
       };
   in {
     #inherit overlay;  # deprecated
@@ -67,6 +93,7 @@
         bflb-lab-dev-cube
         thead-debugserver
         bflb-tools
+        nxpmicro-mfgtools
 
         bl808-rootfs
         bl808-rootfs-dir
@@ -75,6 +102,10 @@
         bl808-linux-1
         bl808-linux-2
         bl808-linux-2-flash-script;
+
+      #inherit (all-pkgs.pkgsCross.riscv32.pkgsMusl)
+      inherit (all-pkgs.pkgsCross.riscv32)
+        uboot;
 
       default = packages.bl808-linux-2;
 
@@ -166,6 +197,10 @@
       };
       bl808-linux-2-flash = mkAppWithArgs {
         drv = packages.bl808-linux-2-flash-script;
+      };
+      uuu = mkAppWithArgs {
+        drv = packages.nxpmicro-mfgtools;
+        exePath = "/bin/uuu";
       };
     };
   });
