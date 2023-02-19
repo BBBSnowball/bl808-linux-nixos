@@ -56,7 +56,6 @@
       callPackageIfFunction final.callPackage ./pkgs/prebuilt-toolchain.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools-all.nix { }
-      // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-2.nix {
         kernel-source = self.inputs.kernel;
         oblfr-source = self.inputs.oblfr;
@@ -131,7 +130,6 @@
         bl808-rootfs-dir
         bl808-regs-py
         prebuilt-linux
-        bl808-linux-1
         bl808-linux-2
         bl808-linux-2-flash-script
         bl808-buildroot-flash-script;
@@ -143,7 +141,7 @@
       default = packages.bl808-linux-2;
 
       keep-downloads = with all-pkgs; let
-        downloads = builtins.mapAttrs (k: v: v.src) {
+        downloads = builtins.mapAttrs (k: v: v.src or v.with-blobs.src) {
           inherit bflb-iot-tool bflb-mcu-tool pycklink bflb-crypto-plus
             bflb-lab-dev-cube thead-debugserver;
         } // {
@@ -206,7 +204,7 @@
       inherit (packages)
         bflb-tools
         prebuilt-linux
-        bl808-linux-1;
+        bl808-linux-2;
     };
 
     devShells = {
@@ -238,11 +236,7 @@
       BLDevCube = packages.bflb-lab-dev-cube;
       DebugServerConsole = packages.thead-debugserver;
     }) // {
-      bl808-linux-1-flash-img = mkAppWithArgs {
-        drv = packages.bflb-iot-tool;
-        args = defaultFlashArgs ++ [ "--addr" "0xD2000" "--firmware" "${packages.bl808-linux-1}/whole_img_linux.bin" "--single" ];
-      };
-      bl808-linux-1-flash-rootfs = mkAppWithArgs {
+      bl808-linux-flash-rootfs = mkAppWithArgs {
         drv = packages.bflb-iot-tool;
         args = defaultFlashArgs ++ [ "--addr" "0x552000" "--firmware" packages.bl808-rootfs "--single" ];
       };
