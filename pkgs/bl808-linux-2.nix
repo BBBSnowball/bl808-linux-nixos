@@ -1,153 +1,115 @@
 let
-  wrapPrebuiltToolchain = toolchain: { bl808-linux-2-build-env, runCommand, runtimeShell, ... }:
-  runCommand "wrap" {} ''
-    mkdir $out/bin -p
-    cd ${toolchain}/bin
-    for x in * ; do
-      echo "#!${runtimeShell}" >$out/bin/"$x"
-      echo "exec ${bl808-linux-2-build-env}/bin/build-env -c \"exec '${toolchain}/bin/$x' \\\"\\\$@\\\"\" -- \"\$@\"" >>$out/bin/"$x"
-      chmod +x $out/bin/"$x"
-    done
-  '';
 in {
-  bl808-linux-2-build-env = { buildFHSUserEnv }:
-  buildFHSUserEnv {
-    name = "build-env";
-    targetPkgs = pkgs: with pkgs;
-      [
-        autoPatchelfHook zlib flex bison ncurses pkg-config
-        #ncurses5
-        gcc binutils
-        bc
-        dtc lz4
-      ];
-    multiPkgs = pkgs: with pkgs;
-      [ glibc
-      xorg.libX11
-      ];
-    runScript = "bash";
-    extraOutputsToInstall = [ "dev" ];
-  };
+  xuantie-gnu-toolchain-multilib-linux-2 = { xuantie-gnu-toolchain-multilib-linux, ... }: xuantie-gnu-toolchain-multilib-linux;
 
-  prebuiltGccBaremetalInEnv = { prebuiltGccBaremetal, bl808-linux-2-build-env, runCommand, runtimeShell }@args: wrapPrebuiltToolchain prebuiltGccBaremetal args;
-  prebuiltGccLinuxInEnv = { prebuiltGccLinux, bl808-linux-2-build-env, runCommand, runtimeShell }@args: wrapPrebuiltToolchain prebuiltGccLinux args;
-
-  bl808-linux-2-use-prebuilt-toolchain = false;
-  xuantie-gnu-toolchain-multilib-newlib-2 = { bl808-linux-2-use-prebuilt-toolchain, prebuiltGccBaremetalInEnv, xuantie-gnu-toolchain-multilib-newlib }:
-    if bl808-linux-2-use-prebuilt-toolchain then prebuiltGccBaremetalInEnv else xuantie-gnu-toolchain-multilib-newlib;
-  xuantie-gnu-toolchain-multilib-linux-2 = { bl808-linux-2-use-prebuilt-toolchain, prebuiltGccLinuxInEnv, xuantie-gnu-toolchain-multilib-linux }:
-    if bl808-linux-2-use-prebuilt-toolchain then prebuiltGccLinuxInEnv else xuantie-gnu-toolchain-multilib-linux;
-
-  bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, xuantie-gnu-toolchain-multilib-linux-2 }:
+  bl808-linux-2-opensbi = { stdenv, fetchFromGitHub, xuantie-gnu-toolchain-multilib-linux, python3, opensbi-source, buildroot_bouffalo, ... }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-opensbi";
+    src = opensbi-source;
 
-    src = fetchFromGitHub {
-      owner = "riscv-software-src";
-      repo = "opensbi";
-      rev = "v0.9";
-      hash = "sha256-W39R1RHsIM3yNwW/eukO+mPd9joPZLw+/XIJoH8agN8=";
-    };
+    nativeBuildInputs = [ python3 ];
 
     patches = [
-      ../patches/bl808-opensbi-01-bl808-support-v0.9.patch
-      ../patches/bl808-opensbi-02-m1sdock_uart_pin_def.patch
-      #../patches/bl808-opensbi-03-debug.patch
+      #../patches/bl808-opensbi-01-bl808-support-v0.9.patch
+      #../patches/bl808-opensbi-02-m1sdock_uart_pin_def.patch
+      ##../patches/bl808-opensbi-03-debug.patch
+      "${buildroot_bouffalo}/board/pine64/ox64/patches/opensbi/0001-lib-utils-serial-Add-Bouffalo-Lab-serial-driver.patch"
+      "${buildroot_bouffalo}/board/pine64/ox64/patches/opensbi/0002-update-opensbi-firmware-base-image-and-dtb-addresses.patch"
     ];
 
+    postPatch = ''
+      patchShebangs scripts/carray.sh
+      patchShebangs scripts/Kconfiglib/*.py
+    '';
+
     buildPhase = ''
-      make PLATFORM=thead/c910 CROSS_COMPILE=${xuantie-gnu-toolchain-multilib-linux-2}/bin/riscv64-unknown-linux-gnu- -j$NIX_BUILD_CORES \
-        FW_TEXT_START=0x3EFF0000 \
-        FW_JUMP_ADDR=0x50000000
-      ${xuantie-gnu-toolchain-multilib-linux-2}/bin/riscv64-unknown-linux-gnu-objdump -dx build/platform/thead/c910/firmware/fw_jump.elf >build/platform/thead/c910/firmware/fw_jump.lst
+      make CROSS_COMPILE=${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu- PLATFORM=generic -j$NIX_BUILD_CORES
+      ${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu-objdump -dx build/platform/generic/firmware/fw_jump.elf >build/platform/generic/firmware/fw_jump.lst
     '';
 
     installPhase = ''
       mkdir $out
-      cp build/platform/thead/c910/firmware/fw_jump.* $out/
+      cp build/platform/generic/firmware/fw_jump.* $out/
     '';
+
+    dontFixup = true;
   };
 
   bl808-linux-2-low-load-common = {
     stdenv, fetchFromGitHub, python3, git, cmake,
-    xuantie-gnu-toolchain-multilib-newlib-2,
+    xuantie-gnu-toolchain-multilib-newlib,
     cpu ? "xx",
+    oblfr-source, bl_mcu_sdk-source,
+    ...
   }@args:
   stdenv.mkDerivation {
     name = "bl808-linux-2-low-load-${cpu}";
-
-    src = fetchFromGitHub {
-      owner = "bouffalolab";
-      repo = "bl808_linux";
-      rev = "561ee61222e5d5e7d028b5cf237c0ddf4a616f1e";
-      hash = "sha256-k8wm4e7/ynPoY+ZVGnHIoq7o1yCrBKInFsUDL2xqK1w=";
-    };
+    src = oblfr-source;
   
-    nativeBuildInputs = [ git ];
+    nativeBuildInputs = [ git python3 ];
 
-    patches = [
-      ../patches/bl808-linux-enable-jtag.patch
-      ../patches/bl808-linux-larger-opensbi.patch
-    ];
-
-    postPatch = '' 
-      bash ./switch_to_m1sdock.sh
+    postPatch = ''
+      patchShebangs tools/kconfig/gensdkconfig.py
     '';
 
     buildPhase = ''
-      NEWLIB_ELF_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-newlib-2}/bin/riscv64-unknown-elf-
-      cd bl_mcu_sdk_bl808
-      make CHIP=bl808 CPU_ID=${cpu} CMAKE_DIR=${cmake}/bin CROSS_COMPILE=$NEWLIB_ELF_CROSS_PREFIX SUPPORT_DUALCORE=y APP=low_load -j$NIX_BUILD_CORES
+      NEWLIB_ELF_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-newlib}/bin/riscv64-unknown-elf-
+      export BL_SDK_BASE=${bl_mcu_sdk-source}
+      #cd bl_mcu_sdk_bl808
+      #make CHIP=bl808 CPU_ID=${cpu} CMAKE_DIR=${cmake}/bin CROSS_COMPILE=$NEWLIB_ELF_CROSS_PREFIX SUPPORT_DUALCORE=y APP=low_load -j$NIX_BUILD_CORES
+      cd apps/${cpu}_lowload
+      make CMAKE=${cmake}/bin/cmake CROSS_COMPILE=$NEWLIB_ELF_CROSS_PREFIX
     '';
 
     installPhase = ''
       mkdir $out
-      cp out/examples/low_load/low_load_bl808_${cpu}.* $out/
+      cp build/build_out/${cpu}_lowload_bl808_${cpu}.{asm,bin,elf,map} $out/
     '';
+
+    dontFixup = true;
   };
 
-  bl808-linux-2-low-load-m0 = { bl808-linux-2-low-load-common }: bl808-linux-2-low-load-common.override { cpu = "m0"; };
-  bl808-linux-2-low-load-d0 = { bl808-linux-2-low-load-common }: bl808-linux-2-low-load-common.override { cpu = "d0"; };
+  bl808-linux-2-low-load-m0 = { bl808-linux-2-low-load-common, ... }: bl808-linux-2-low-load-common.override { cpu = "m0"; };
+  bl808-linux-2-low-load-d0 = { bl808-linux-2-low-load-common, ... }: bl808-linux-2-low-load-common.override { cpu = "d0"; };
 
-  bl808-linux-2-dtb = { stdenv, dtc }:
+  bl808-linux-2-dtb = { stdenv, dtc, kernel-source, bison, yacc, flex, bc, ... }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-dtb";
-    src = ../dts/hw808c.dts;
-    dontUnpack = true;
+    src = kernel-source;
 
-    nativeBuildInputs = [ dtc ];
+    nativeBuildInputs = [ dtc bison yacc flex bc ];
 
     buildPhase = ''
-      dtc -I dts -O dtb -o hw.dtb.5M $src
+      #cpp -nostdinc -I "${kernel-source}/arch/riscv/boot/dts/bouffalolab/" -undef -x assembler-with-cpp $src tmp.dts
+      #dtc -I dts -O dtb -o hw.dtb.5M tmp.dts
+
+      make ARCH=riscv bl808_defconfig
+      make ARCH=riscv dtbs
     '';
     installPhase = ''
       mkdir $out
-      cp hw.dtb.5M $out/
+      make ARCH=riscv dtbs_install INSTALL_PATH=$out
+      cp arch/riscv/boot/dts/bouffalolab/bl808-pine64-ox64.dtb $out/hw.dtb.5M
     '';
   };
 
-  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux-2 }:
+  bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux, kernel-source, ... }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-linux";
 
-    src = fetchFromGitHub {
-      owner = "BBBSnowball";
-      repo = "linux-riscv-bl808";
-      rev = "fcd93b59872e7aad4cdabaac6f5578ee640c1f01";
-      hash = "sha256-OoxUMEviiZ68s94XyhIjs+KrgV735+Iimh/XpnL0bPU=";
-    };
+    src = kernel-source;
 
     nativeBuildInputs = [ bison yacc flex bc lz4 kmod ];
 
-    outputs = [ "out" "modules" ];
+    outputs = [ "out" "modules" "dtb" ];
 
     buildPhase = ''
       patchShebangs scripts/ld-version.sh
-      LINUX_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-linux-2}/bin/riscv64-unknown-linux-gnu-
-      cp c906.config .config
+      LINUX_CROSS_PREFIX=${xuantie-gnu-toolchain-multilib-linux}/bin/riscv64-unknown-linux-gnu-
 
       makeFlags=(ARCH=riscv CROSS_COMPILE=$LINUX_CROSS_PREFIX -j$NIX_BUILD_CORES INSTALL_MOD_PATH=$modules DEPMOD=${kmod}/bin/depmod)
-      make ''${makeFlags[@]} Image modules
+      make ''${makeFlags[@]} bl808_defconfig
+      make ''${makeFlags[@]} Image modules dtbs
       lz4 -9 -f arch/riscv/boot/Image arch/riscv/boot/Image.lz4
     '';
 
@@ -158,10 +120,13 @@ in {
 
       make ''${makeFlags[@]} modules_install
       rm $modules/lib/modules/*/{build,source}
+
+      make ''${makeFlags[@]} dtbs_install INSTALL_PATH=$dtb
+      cp arch/riscv/boot/dts/bouffalolab/bl808-pine64-ox64.dtb $dtb/hw.dtb.5M
     '';
   };
 
-  bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load-m0, bl808-linux-2-low-load-d0, bl808-linux-2-dtb, bl808-linux-2-kernel, bl808-rootfs }:
+  bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load-m0, bl808-linux-2-low-load-d0, bl808-linux-2-dtb, bl808-linux-2-kernel, bl808-rootfs, ... }:
   stdenv.mkDerivation {
     name = "bl808_linux";
     dontUnpack = true;
@@ -173,19 +138,30 @@ in {
       cp -s ${bl808-linux-2-opensbi}/* out/
       cp -s ${bl808-linux-2-low-load-m0}/* out/
       cp -s ${bl808-linux-2-low-load-d0}/* out/
-      cp -s ${bl808-linux-2-dtb}/* out/
+      cp -s ${bl808-linux-2-kernel.dtb}/hw.dtb.5M out/
       cp -s ${bl808-linux-2-kernel}/* out/
       ln -s ${bl808-linux-2-kernel.modules}/ out/linux-modules
       cp -s ${bl808-rootfs} out/squashfs_test.img
-      ( cd out && python3 ${../bl808-flash}/merge_7_5Mbin.py )
+      ln -s m0_lowload_bl808_m0.bin out/low_load_bl808_m0.bin
+      ln -s d0_lowload_bl808_d0.bin out/low_load_bl808_d0.bin
+      ( cd out && python3 ${../bl808-flash}/merge_7_5Mbin.py --obflr-layout )
     '';
   
     installPhase = ''
       cp -r out $out
     '';
+
+    passthru = {
+      opensbi = bl808-linux-2-opensbi;
+      low-load-m0 = bl808-linux-2-low-load-m0;
+      low-load-d0 = bl808-linux-2-low-load-d0;
+      kernel = bl808-linux-2-kernel;
+      dtb = bl808-linux-2-kernel.dtb;
+      rootfs = bl808-rootfs;
+    };
   };
 
-  bl808-linux-2-flash-script = { bl808-linux-2, bflb-mcu-tool, bflb-iot-tool, writeShellScriptBin }:
+  bl808-linux-2-flash-script = { bl808-linux-2, bflb-mcu-tool, bflb-iot-tool, writeShellScriptBin, ... }:
   (writeShellScriptBin "flash-bl808-linux-2" ''
     files=${bl808-linux-2}
     bflb_mcu_tool=${bflb-mcu-tool}/bin/bflb-mcu-tool

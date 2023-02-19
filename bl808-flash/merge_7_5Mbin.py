@@ -18,12 +18,13 @@ def format_size(x):
         return "%d bytes" % x
 
 class FlashRegion(object):
-    def __init__(self, from_file, flash_offset, load_address, max_size=inf, optional=False):
+    def __init__(self, from_file, flash_offset, load_address, max_size=inf, optional=False, obflr_type=None):
         self.from_file = from_file
         self.flash_offset = flash_offset
         self.load_address = load_address
         self.max_size = max_size
         self.optional = optional
+        self.obflr_type = obflr_type
 
     def read(self):
         if self.from_file is None:
@@ -41,7 +42,10 @@ class FlashRegions(object):
 
     def add(self, name, *args, **kwargs):
         v = FlashRegion(*args, **kwargs)
+        if v.flash_offset is None and self.prev_region.max_size > 0:
+            v.flash_offset = self.prev_region.flash_offset + self.prev_region.max_size
         self.regions[name] = v
+        self.prev_region = v
         setattr(self, name, v)
 
     def read(self):
@@ -139,8 +143,31 @@ def make_regions(flash_size=8*MB):
 
     return regions
 
+def make_regions_obflr(flash_size=8*MB):
+    regions = FlashRegions(flash_size)
+    regions.add("bootheader_group0", None, 0x00000000, 0)
+    regions.add("bootheader_group1", None, 0x00001000, 0)
+
+    #NOTE There are additional size requirements, which are checked by the linker scripts for low_load.
+    # Both low_load regions have the same load address because it will be "loaded" by XIP mapping. We make them
+    # optional when we are only generating the later part of the flash.
+    regions.add("low_load_m0", "low_load_bl808_m0.bin", 0x00002000, 0x58000000)
+    regions.add("low_load_d0", "low_load_bl808_d0.bin", 0x00052000, 0x58000000)
+
+    # These regions will be included in whole_img_linux.bin.
+    regions.add("header",      None,                    whole_img_base, 0, max_size=0x100)
+    regions.add("dtb",         "hw.dtb.5M",             None, 0x51ff8000, max_size=0x10000, obflr_type=1)
+    regions.add("opensbi",     "fw_jump.bin",           None, 0x3eff0000, max_size=0x20000, obflr_type=2)
+    regions.add("linux",       "Image.lz4",             None, 0x50000000,                   obflr_type=3)
+    regions.add("linux_header", None,                   regions.linux.flash_offset - 8, 0)
+
+    return regions
+
 def build_image(args):
-    regions = make_regions(args.flash_size_mb * MB)
+    if args.obflr_layout:
+        regions = make_regions_obflr(args.flash_size_mb * MB)
+    else:
+        regions = make_regions(args.flash_size_mb * MB)
     regions.read()
 
     # The BL Dev Cube GUI is padding the files so let's do the same. This probably not necessary
@@ -154,6 +181,14 @@ def build_image(args):
 
     # add header to Linux image (TODO: what does it do? is this for LZ4?)
     regions.linux_header.data = b'\0\0\0\x50' + struct.pack('<I', len(regions.linux.data))
+
+    if args.obflr_layout:
+        sections_for_header = filter(lambda v: v.obflr_type is not None, regions.regions.values())
+        sections_for_header = sorted(sections_for_header, key=lambda v: v.flash_offset)
+        header = struct.pack('<IIII', 0x4c4d5642, 1, len(sections_for_header), 0)
+        for v in sections_for_header:
+            header += struct.pack('<IIII', 0x5c2381b2, v.obflr_type, v.flash_offset - whole_img_base, len(v.data))
+        regions.header.data = header
 
     regions.check(args.check_size)
 
@@ -215,6 +250,8 @@ if __name__ == '__main__':
         help="flash size in megabytes (1024*1024 bytes), default 8 MB")
     parser.add_argument("--only-bootheader-group1", default=None,
         help="only generate the bootheader, argument is the firmware for d0")
+    parser.add_argument("--obflr-layout", action="store_true",
+        help="allow more space for OpenSBI and kernel, remove rootfs, add OBFLR header")
     args = parser.parse_args()
 
     if args.only_bootheader_group1 is not None:

@@ -7,6 +7,31 @@
       url = "github:madushan1000/u-boot/bl808/usb-udc";
       flake = false;
     };
+
+    kernel = {
+      url = "github:arm000/linux-bl808/linux-next/mboxic";
+      flake = false;
+    };
+
+    oblfr = {
+      url = "github:openbouffalo/OBLFR";
+      flake = false;
+    };
+
+    bl_mcu_sdk = {
+      url = "github:bouffalolab/bl_mcu_sdk";
+      flake = false;
+    };
+
+    opensbi = {
+      url = "github:riscv-software-src/opensbi/v1.2";
+      flake = false;
+    };
+
+    buildroot_bouffalo = {
+      url = "github:openbouffalo/buildroot_bouffalo";
+      flake = false;
+    };
   };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
@@ -32,7 +57,13 @@
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bflb-tools-all.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-1.nix { }
-      // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-2.nix { }
+      // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-2.nix {
+        kernel-source = self.inputs.kernel;
+        oblfr-source = self.inputs.oblfr;
+        bl_mcu_sdk-source = self.inputs.bl_mcu_sdk;
+        opensbi-source = self.inputs.opensbi;
+        inherit (self.inputs) buildroot_bouffalo;
+      }
       // callPackageIfFunction final.callPackage (import ./pkgs/xuantie-gnu-toolchain.nix { inherit (nixpkgs) lib; }) { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-regs-py.nix { }
       // callPackageIfFunction final.callPackage ./pkgs/buildroot.nix { }

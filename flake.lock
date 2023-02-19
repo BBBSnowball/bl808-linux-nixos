@@ -1,5 +1,37 @@
 {
   "nodes": {
+    "bl_mcu_sdk": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1674474131,
+        "narHash": "sha256-hbf4RjSv1eFIaGtlrVa2yeuM6em3zEArbqT5Ivk0ZH4=",
+        "owner": "bouffalolab",
+        "repo": "bl_mcu_sdk",
+        "rev": "18408f971e3f8c2f82e79ec5fddd38c22f288c0d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "bouffalolab",
+        "repo": "bl_mcu_sdk",
+        "type": "github"
+      }
+    },
+    "buildroot_bouffalo": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1676627624,
+        "narHash": "sha256-bsJppEyIVQA8Gi8a/YXuuA/vQgdXosqZj2k9lYncsm4=",
+        "owner": "openbouffalo",
+        "repo": "buildroot_bouffalo",
+        "rev": "a8aa9f82da2dc9d9a57622e2569c9cfd7ce744a3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "openbouffalo",
+        "repo": "buildroot_bouffalo",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "locked": {
         "lastModified": 1667395993,
@@ -12,6 +44,23 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "kernel": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1676582021,
+        "narHash": "sha256-F9yjPtnySeLH+eAXQv082+aAVrVv4u9CZHEm9FIjAs4=",
+        "owner": "arm000",
+        "repo": "linux-bl808",
+        "rev": "9a7409a0e25d769c780a5994d20cfaa6a4c5923f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "arm000",
+        "ref": "linux-next/mboxic",
+        "repo": "linux-bl808",
         "type": "github"
       }
     },
@@ -31,10 +80,48 @@
         "type": "github"
       }
     },
+    "oblfr": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1676539441,
+        "narHash": "sha256-lMGB7XHQwKpWka+r2+5tXiXc3sk0ilNuDKOeuS6l7jA=",
+        "owner": "openbouffalo",
+        "repo": "OBLFR",
+        "rev": "53ceb5fd827993993f00857818eb2ce5bba98f98",
+        "type": "github"
+      },
+      "original": {
+        "owner": "openbouffalo",
+        "repo": "OBLFR",
+        "type": "github"
+      }
+    },
+    "opensbi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1671862009,
+        "narHash": "sha256-Zcl+SE2nySMycV/ozsl4AvGipRsMblA5mt3oVZ81Z44=",
+        "owner": "riscv-software-src",
+        "repo": "opensbi",
+        "rev": "6b5188ca14e59ce7bf71afe4e7d3d557c3d31bf8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "riscv-software-src",
+        "ref": "v1.2",
+        "repo": "opensbi",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
+        "bl_mcu_sdk": "bl_mcu_sdk",
+        "buildroot_bouffalo": "buildroot_bouffalo",
         "flake-utils": "flake-utils",
+        "kernel": "kernel",
         "nixpkgs": "nixpkgs",
+        "oblfr": "oblfr",
+        "opensbi": "opensbi",
         "uboot": "uboot"
       }
     },
