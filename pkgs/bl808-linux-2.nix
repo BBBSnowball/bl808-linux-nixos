@@ -72,27 +72,6 @@ in {
   bl808-linux-2-low-load-m0 = { bl808-linux-2-low-load-common, ... }: bl808-linux-2-low-load-common.override { cpu = "m0"; };
   bl808-linux-2-low-load-d0 = { bl808-linux-2-low-load-common, ... }: bl808-linux-2-low-load-common.override { cpu = "d0"; };
 
-  bl808-linux-2-dtb = { stdenv, dtc, kernel-source, bison, yacc, flex, bc, ... }:
-  stdenv.mkDerivation {
-    name = "bl808-linux-2-dtb";
-    src = kernel-source;
-
-    nativeBuildInputs = [ dtc bison yacc flex bc ];
-
-    buildPhase = ''
-      #cpp -nostdinc -I "${kernel-source}/arch/riscv/boot/dts/bouffalolab/" -undef -x assembler-with-cpp $src tmp.dts
-      #dtc -I dts -O dtb -o hw.dtb.5M tmp.dts
-
-      make ARCH=riscv bl808_defconfig
-      make ARCH=riscv dtbs
-    '';
-    installPhase = ''
-      mkdir $out
-      make ARCH=riscv dtbs_install INSTALL_PATH=$out
-      cp arch/riscv/boot/dts/bouffalolab/bl808-pine64-ox64.dtb $out/hw.dtb.5M
-    '';
-  };
-
   bl808-linux-2-kernel = { stdenv, fetchFromGitHub, bison, yacc, flex, bc, kmod, lz4, xuantie-gnu-toolchain-multilib-linux, kernel-source, ... }:
   stdenv.mkDerivation {
     name = "bl808-linux-2-linux";
@@ -126,7 +105,7 @@ in {
     '';
   };
 
-  bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load-m0, bl808-linux-2-low-load-d0, bl808-linux-2-dtb, bl808-linux-2-kernel, bl808-rootfs, ... }:
+  bl808-linux-2 = { python3, stdenv, bl808-linux-2-opensbi, bl808-linux-2-low-load-m0, bl808-linux-2-low-load-d0, bl808-linux-2-kernel, bl808-rootfs, ... }:
   stdenv.mkDerivation {
     name = "bl808_linux";
     dontUnpack = true;
