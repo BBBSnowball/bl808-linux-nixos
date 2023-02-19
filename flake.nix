@@ -92,6 +92,7 @@
           };
           patches = [ ./patches/nxpmicro-mfgtools--add-our-usb-vid-pid.patch ];
         });
+        phytool = final.callPackage ./pkgs/phytool.nix { };
       };
   in {
     #inherit overlay;  # deprecated

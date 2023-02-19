@@ -80,15 +80,30 @@ stdenv.mkDerivation rec {
   });
   luaWithPkgs = lua.withPackages (p: [ p.lua-periphery ]);
 
-  refsDrv = linkFarmFromDrvs "refs" [
-    busybox
-    micropython
-    (passthru.micropythonPrecompile bl808-regs-py)
+  passthru.phytool = pkgsTarget.phytool;
+
+  passthru.drvs = {
+    inherit
+      busybox
+      micropython;
+    bl808-regs-py = (passthru.micropythonPrecompile bl808-regs-py);
     #luaWithPkgs
-    (pkgsTarget.screen.override { pam = null; })
+    screen = (pkgsTarget.screen.override { pam = null; });
     #(pkgsTarget.lrzsz)
-    (pkgsTarget.lrzsz.overrideAttrs (old: { postInstall = ''rm $out/bin/{rx,rb,sx,sb}''; }))
-  ];
+    lrzsz = (pkgsTarget.lrzsz.overrideAttrs (old: { postInstall = ''rm $out/bin/{rx,rb,sx,sb}''; }));
+    inherit (pkgsTarget)
+      phytool
+      openssh
+      ethtool
+      iproute2
+      iputils
+      iperf3
+      socat
+      bash
+      ;
+  };
+
+  refsDrv = linkFarmFromDrvs "refs" (builtins.attrValues passthru.drvs);
   refs = writeReferencesToFile refsDrv;
 
   buildImage = ''
