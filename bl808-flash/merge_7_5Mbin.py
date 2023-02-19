@@ -169,6 +169,28 @@ def build_image(args):
             with open(output_file, "wb") as f:
                 f.write(data)
 
+def build_only_bootheader_group1(args):
+    regions = make_regions(args.flash_size_mb * MB)
+    regions.low_load_d0.from_file = args.only_bootheader_group1
+    regions.low_load_d0.read()
+
+    # The BL Dev Cube GUI is padding the files so let's do the same. This probably not necessary
+    # (and 0xff might be more suitable padding for flash) but let's do the same, for now.
+    for region in [regions.low_load_d0]:
+        if (len(region.data) % 16) != 0:
+            region.data += b"\0" * (16 - len(region.data) % 16)
+
+    # generate bootheader for group1 (must be done after reading and padding low_load_d0)
+    make_bootheader_group1(regions)
+
+    for output_file, data in (
+            (args.out_bootheader_group1, regions.bootheader_group1.data),
+            (args.out_low_load_d0_padded, regions.low_load_d0.data),
+        ):
+        if output_file:
+            with open(output_file, "wb") as f:
+                f.write(data)
+
 def parse_bool(x):
     if x == "false" or x == "False" or x == "no" or x == "0":
         return False
@@ -191,7 +213,12 @@ if __name__ == '__main__':
         help="output file for padded low_load_d0, default 'low_load_bl808_d0_padded.bin'")
     parser.add_argument("--flash-size-mb", type=int, default=8,
         help="flash size in megabytes (1024*1024 bytes), default 8 MB")
+    parser.add_argument("--only-bootheader-group1", default=None,
+        help="only generate the bootheader, argument is the firmware for d0")
     args = parser.parse_args()
 
-    build_image(args)
+    if args.only_bootheader_group1 is not None:
+        build_only_bootheader_group1(args)
+    else:
+        build_image(args)
 

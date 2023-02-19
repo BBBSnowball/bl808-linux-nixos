@@ -35,6 +35,7 @@
       // callPackageIfFunction final.callPackage ./pkgs/bl808-linux-2.nix { }
       // callPackageIfFunction final.callPackage (import ./pkgs/xuantie-gnu-toolchain.nix { inherit (nixpkgs) lib; }) { }
       // callPackageIfFunction final.callPackage ./pkgs/bl808-regs-py.nix { }
+      // callPackageIfFunction final.callPackage ./pkgs/buildroot.nix { }
       // {
         inherit nixpkgs;  # used to import chrootenv in bflb-tools.nix
         thead-debugserver = final.callPackage ./pkgs/thead-debugserver.nix { };
@@ -101,7 +102,8 @@
         prebuilt-linux
         bl808-linux-1
         bl808-linux-2
-        bl808-linux-2-flash-script;
+        bl808-linux-2-flash-script
+        bl808-buildroot-flash-script;
 
       #inherit (all-pkgs.pkgsCross.riscv32.pkgsMusl)
       inherit (all-pkgs.pkgsCross.riscv32)
