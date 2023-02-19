@@ -20,6 +20,8 @@ instructions below.
   `nix build -L github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash-script -o result-linux`
 - Connect M1s dock in bootloader mode and run:
   `nix run -L -- github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash --port /dev/ttyUSB1`
+- FIXME: This is using the updated structure from `buildroot_bouffalo` now so this will expect the rootfs
+  on the SD card. We don't build that, yet.
 - Connect picocom to `/dev/ttyUSB0` with 2 Mbaud.
 - Press the RST button. You should see Linux booting. Login is "root" without password.
 
@@ -117,6 +119,8 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
         check this out as soon as I have working hardware again.
   - This used to be a multi-step process but we have figured out how to use the CLI tools for every step so we can automate this.
   - `nix run -L .#bl808-linux-2-flash --port /dev/ttyUSB1`
+  - FIXME: This is using the updated structure from `buildroot_bouffalo` now so this will expect the rootfs
+    on the SD card. We don't build that, yet.
 6. Connect terminal to D0 cpu:
   - `picocom -b 2000000 /dev/ttyUSB0`
 7. Press the reset button (RST). You should see Linux booting. You can login as `root` with no password.
