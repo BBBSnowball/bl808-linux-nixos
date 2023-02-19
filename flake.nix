@@ -141,7 +141,7 @@
       default = packages.bl808-linux-2-flash-script;
 
       keep-downloads = with all-pkgs; let
-        downloads = builtins.mapAttrs (k: v: v.src or v.with-blobs.src) {
+        downloads = builtins.mapAttrs (k: v: v.src) {
           inherit bflb-iot-tool bflb-mcu-tool pycklink bflb-crypto-plus
             bflb-lab-dev-cube thead-debugserver;
         } // {
