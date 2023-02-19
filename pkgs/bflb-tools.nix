@@ -5,7 +5,10 @@ let
   deblobify = drv: { runCommand, file, ... }: runCommand drv.name {
     inherit drv file;
     inherit (drv) pname version;
-    passthru.with-blobs = drv;
+    passthru = {
+      with-blobs = drv;
+      inherit (drv) src;
+    };
 
     okToKeep = ''
       /builtin_imgs/
@@ -29,6 +32,8 @@ let
       exit 1
     fi
   '';
+
+  useChrootEnv = false;
 in
 {
   chrootenv = { nixpkgs, callPackage }: callPackage "${nixpkgs}/pkgs/build-support/build-fhs-userenv/chrootenv" {};
@@ -43,13 +48,13 @@ in
     runScript = "bash";
   };
 
-  init-env-for-flash-tools = { writeShellScript, bflb-flash-env, xorg, gnused, coreutils }:
-  writeShellScript "init-env-for-flash-tools" ''
+  init-env-for-flash-tools = { writeShellScript, bflb-flash-env, xorg, gnused, coreutils, lib, stdenv }:
+  writeShellScript "init-env-for-flash-tools" (lib.optionalString useChrootEnv ''
     for i in ${bflb-flash-env}/* /host/*; do
       path="/''${i##*/}"
       [ -e "$path" ] || ${coreutils}/bin/ln -s "$i" "$path"
     done
-
+  '' + ''
     set -e
 
     # create a writable copy of the Python package in /tmp because it will be
@@ -88,7 +93,7 @@ in
       rm -r "$pkgtmp"
       exit $x
     fi
-  '';
+  '');
 
   #NOTE We should use packageOverrides here but this is not so easy with the current structure of this flake.
   # see https://nixos.wiki/wiki/Overlays#Python_Packages_Overlay
@@ -151,7 +156,7 @@ in
 
     postInstall = (args.postInstall or "") + ''
       mv $out/bin/${pname} $out/bin/.${pname}.unwrapped
-      ( echo "#! ${bash}/bin/bash"; echo "${chrootenv}/bin/chrootenv ${init-env-for-flash-tools} $out bin/.${pname}.unwrapped \"\$(pwd)\" \"\$@\"" ) >$out/bin/${pname}
+      ( echo "#! ${bash}/bin/bash"; echo "${if useChrootEnv then "${chrootenv}/bin/chrootenv" else "${bash}/bin/bash"} ${init-env-for-flash-tools} $out bin/.${pname}.unwrapped \"\$(pwd)\" \"\$@\"" ) >$out/bin/${pname}
       chmod +x $out/bin/${pname}
     '';
   }));

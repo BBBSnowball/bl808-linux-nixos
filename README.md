@@ -3,7 +3,12 @@ My first steps with BL808 and Linux.
 I'm using M1s dock, for now (because of its easy-to-use JTAG adapter) but my long-term plan is to use Ox64 boards.
 
 We are using Nix to orchestrate the build and we are using nixpkgs to provide dependencies. Nonetheless, you don't
-need NixOS to build it.
+need NixOS to build it (only nix).
+
+
+Mac OS: There is some very limited support for aarch64-darwin (only bflb-mcu-tool and bflb-iot-tool) but kmod/depmod and
+all the cross-compilers are broken so we cannot build any software for RISC-V. I use a Debian VM with Parallels. aarch64-linux
+is supported (except for DebugServer and Dev Cube).
 
 Quickstart
 ==========
@@ -11,22 +16,10 @@ Quickstart
 This will assume that you know how nix works and how to flash the M1s dock board. If not, consider reading the longer
 instructions below.
 
-- Build: `nix build github:BBBSnowball/bl808-linux-nixos -o result-linux`
-- Start Dev Cube: `nix run github:BBBSnowball/bl808-linux-nixos#BLDevCube -o result-linux`
-- Flash `low_load` binaries (from `result-linux` directory) according to the usual instructions.
-- Flash root image: `nix run github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash-img --port /dev/ttyUSB1`
-
-Even quicker start
-==================
-
-This will assume that you know how nix works and how to flash the M1s dock board. If not, consider reading the longer
-instructions below.
-
-NOTE: This has not been tested on a new board, yet. I have tested it after erasing the flash so there is a good chance
-that it will work.
-
+- Build most things in advance to make the next step faster (optional but this can take a few hours because it will build several compilers):
+  `nix build -L github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash-script -o result-linux`
 - Connect M1s dock in bootloader mode and run:
-  `nix run github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash --port /dev/ttyUSB1`
+  `nix run -L -- github:BBBSnowball/bl808-linux-nixos#bl808-linux-2-flash --port /dev/ttyUSB1`
 - Connect picocom to `/dev/ttyUSB0` with 2 Mbaud.
 - Press the RST button. You should see Linux booting. Login is "root" without password.
 
@@ -110,60 +103,20 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
   - This will build the toolchain from source so expect this to take some time. The results will be cached in
     `/nix/store` so further runs will be faster.
 4. Download Bouffallo tools and create symlinks for easy access (optional):
-  - `nix build -L .#bflb-tools -o result-tools` (e.g. BLDevCube, optional if you already have BLDevCube)
+  - `nix build -L .#bflb-tools -o result-tools`
   - `nix build -L .#keep-downloads -o keep-downloads` (raw downloads, optional)
-4. Flash first stage loader (`low_load`):
-  - `nix run .#BLDevCube` (or download Dev Cube from Bouffallo and start that, e.g. for Mac OS)
-  - This is step 2 of `keep-downloads/prebuilt-linux/steps.md` but use the files in `./result-linux` (see above).
-    This instruction is rather short (so read on) but the image is useful.
-  - Here is a step-by-step guide of what to do:
-    - Connect to "UART" USB port of M1s dock. There will be two tty ports, e.g. ttyUSB0 and ttyUSB1.
-      The one with the higher number is for the M0 cpu. We need that one for programming.
-    - Put the board into bootloader mode: Press and hold the BOOT button, then press the reset (RST) button, then release BOOT.
-      - You can usually do the same by pressing BOOT while connecting power. This won't work for M1s dock because it will also
-        boot the BL702 in a different mode.
-      - TODO: RST/PU_CHIP is connected to U1RTS and BOOT to U1DTR. Can we automatically enter the bootloader with that?
-        (I think that I have seen something about DTR in some log but I always had to manually enter the bootloader.)
-        - `bflb_interface_uart.py` indeed uses DTR and RTS. There are several options to invert things so I should certainly
-          check this out as soon as I have working hardware again.
-    - Switch to the MCU tab of Dev Cube.
-    - M0 Group: Set `group0`, image address 0x58000000, file `./result-linux/low_load_bl808_m0.bin` ("m0" and ".bin")
-    - D0 Group: Set `group1`, image address 0x58000000, file `./result-linux/low_load_bl808_d0.bin` ("d0" and ".bin")
-    - On the right side, select UART, the higher one of the ttyUSB ports (e.g. ttyUSB1) and 2000000 baud (2Mbaud).
-    - Click "Create & download".
-  - In case you want to know what that does:
-    - The settings will be written into two config headers at the start of flash. The one for group0 is at 0x0000, the one
-      for group1 is at 0x1000. The bootrom will read these headers and start our firmware accordingly.
-    - `load_load_bl808_*.bin` are written to address 0x2000 (group0, M0) resp. 0x52000 (group1, D0). The files contain
-      raw RISC-V instructions. The `result-linux` directory also includes ".elf" (with debug symbols) and ".asm" (assembly text)
-      files of these programs. Have a look at the ".asm" if you are curious.
-      - Actually, the GUI creates the files `img_group0.bin` and `img_group1.bin`, which are slightly different from our
-        binaries. As far as I can tell, they are just zero-padded to a multiple of 16 bytes.
-    - 0x58000000 is the start of the flash execute-in-place (XIP) region. The bootrom will map the start of our `low_load`
-      binaries to this address. Execute-in-place means that the flash will act like a memory-mapped ROM so we can
-      run programs from flash without loading them into RAM.
-    - We are using the same address for both processors/groups. This might seem unusual but each processor (or rather each
-      group, I assume) have there own memory mapping. Therefore, M0 and D0 will see different data when looking at 0x58000000,
-      namely the start of their own `low_load` program. That way, we can use a similar linker script for both `low_load` programs
-      and the hardware will adjust the offset for us.
-    - As a side note, this mapping is a simple offset in the flash and 0x58000000 is the start of the range. This means that
-      `low_load` can access later parts of the flash (e.g. OpenSBI and kernel image) but addresses near the start of flash will
-      fall out of the XIP memory range and thus they are not accessible via XIP (unless we change the offset, which we can
-      do at runtime if we want). We can still access these parts, of course, but we have to use the `SF_CTRL` peripheral for that.
-    - `low_load` for M0 won't do much, yet. It can communicate with D0 and provide firmware services but these parts still have to be
-      written. @alexhorner and @arm000 seem to be working on that.
-      - My variant of `low_load` will enable JTAG on the SD card pins. This is useful with M1s dock board and the Sipeed RV-Debugger
-        but it will interfere with normal usage of SD card, of course.
-    - `low_load` for D0 will copy OpenSBI, device tree and Linux kernel to RAM. Then, it will jump to OpenSBI, which will initialize
-      some peripherals and then start Linux. OpenSBI will remain in memory because it provides service calls for Linux.
-    - If we figure out how to generate the config headers, we should be able to program these parts without using the GUI.
-      - The headers seem to be constant.
-5. Flash OpenSBI, device tree, Linux kernel and rootfs:
-  - You should still be in bootloader mode. If not, see previous step.
-  - `nix run .#bl808-linux-2-flash-img --port /dev/ttyUSB1`
-  - (or if you prefer the manual way: `result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware result-linux/whole_img_linux.bin  --single`)
-  - The Bouffallo tools love to swallow errors so don't trust the exit code. It should print "All success" when successful.
-  - You can repeat this step if you want to update the rootfs.
+5. Write all parts to flash:
+  - Connect to "UART" USB port of M1s dock. There will be two tty ports, e.g. ttyUSB0 and ttyUSB1.
+    The one with the higher number is for the M0 cpu. We need that one for programming.
+  - Put the board into bootloader mode: Press and hold the BOOT button, then press the reset (RST) button, then release BOOT.
+    - You can usually do the same by pressing BOOT while connecting power. This won't work for M1s dock because it will also
+      boot the BL702 in a different mode.
+    - TODO: `RST/PU_CHIP` is connected to U1RTS and BOOT to U1DTR. Can we automatically enter the bootloader with that?
+      (I think that I have seen something about DTR in some log but I always had to manually enter the bootloader.)
+      - `bflb_interface_uart.py` indeed uses DTR and RTS. There are several options to invert things so I should certainly
+        check this out as soon as I have working hardware again.
+  - This used to be a multi-step process but we have figured out how to use the CLI tools for every step so we can automate this.
+  - `nix run -L .#bl808-linux-2-flash --port /dev/ttyUSB1`
 6. Connect terminal to D0 cpu:
   - `picocom -b 2000000 /dev/ttyUSB0`
 7. Press the reset button (RST). You should see Linux booting. You can login as `root` with no password.
@@ -178,6 +131,8 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
   - The BOOT button on M1s dock shouldn't be used at runtime because it shares a pin with flash. If you reconfigure it to GPIO function,
     you will see squashfs error next time the kernel tries to read a page from flash.
 9. Debugging (optional - except you are an early adopter so you probably want this):
+  - The DebugServer is a closed-source binary and this repo only knows about the variant for `x86_64-linux`.
+  - We should be able to use OpenOCD eventually but I haven't tried this, yet. I may have to switch to a different JTAG adapter for that.
   - There doesn't seem to be any default pinout for JTAG. Instead, `low_load` will have to set the pinmux and thereby choose which
     processor is available on which pins.
     - This is very unfortunate because it means that we cannot use JTAG for unbricking and we cannot debug through a reset (if you do press
@@ -186,14 +141,17 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
       according to the header files.
     - Unfortunately, debugging has only worked for the D0 cpu, for me. This could be simple user error, though (e.g. I might have to
       use a different DebugServer for 32-bit RISC-V or change its configuration).
-  - We should be able to use OpenOCD eventually but I haven't tried this, yet. I may have to switch to a different JTAG adapter for that.
   - Start Bouffallo's debug server: `./result-tools/bin/DebugServerConsole`
+    - If you don't have the result-tools symlink, yet:
+      `nix build -L .#bflb-tools -o result-tools`
   - Start gdb: `./result-toolchain-linux/bin/riscv64-unknown-linux-gnu-gdb`
+    - If you don't have the result-toolchain-linux symlink, yet:
+      `nix build -L .#xuantie-gnu-toolchain-multilib-linux -o result-toolchain-linux`
   - Setup gdb:
     - `target remote 127.0.0.1:1025` (connect to debug server)
-    - `file ./result-linux/Image.elf` (load symbols for Linux kernel - make sure that it matches the one on the board or the result will be confusing)
+    - `file ./result-linux/files/Image.elf` (load symbols for Linux kernel - make sure that it matches the one on the board or the result will be confusing)
     - `continue`
-  - If you want to poke at peripherals:
+  - If you want to poke peripherals:
     - Keep in mind that there is an MMU, i.e. addresses for D0 may be different from physical addresses in the datasheet. The linux kernel
       will add mappings for peripherals in the device tree, e.g. you can add them as type "generic-uio". This is necessary if you want to
       use `/dev/mem` in Linuxl
@@ -218,16 +176,71 @@ M1s dock and Ox64 so this will only work for M1s dock, for now (but a variant fo
       - (This is only a demonstration. If you want to do this for real, have a look at register 0x20000ac4, which reports the input value of GPIO0 to GPIO31.)
     - I don't have a way to debug cpu M0, yet, but there are some limited means available in the `MCU_MISC` peripheral, e.g. we can read its `mstatus`
       register and program counter.
-- 10. Micropython
+10. Micropython
   - The compile-flash-test loop for `low_load` and the kernel is rather long so we want some high-level scripting language to test our understanding of
     peripherals and maybe write some driver skeletons.
   - Why Micropython?
-    - It should be tiny. I can't use the SD card while I use the Sipeed debugger. We could load larger binaries into RAM but that's not much
+    - It should be tiny. I can't use the SD card while I use the Sipeed debugger. We could load larger binaries into RAM but that's still quite limited.
     - Tcl is a bit larger than I would like, Lua is quit small but pulls in too many libraries (and Lua without readline seems to have very bare-bones
       editing support), Python is absurdely large (over 100 MB, could surely be reduced but I don't want to spend the time).
     - Micropython was the first one that just works well enough so I'm running with that.
     - The Linux port is lacking some things, e.g. peripheral libraries and calling subprocesses and the heap has a fixed size. I assume that it is mostly
       for testing without hardware. We can work around some of the limitations with the `ffi` module.
+  - Some differences from regular Python:
+    - You start it with `micropython` instead of `python`.
+    - If you want to call native functions, use the `ffi` module instead of `ctypes`.
+    - We have added the module `bl808_regs`, which contains most of the offsets and register descriptions from the C headers. Tab completion mostly works
+      but keep in mind that it isn't completely reliable. We are using the [uctypes](https://docs.micropython.org/en/latest/library/uctypes.html) module
+      to describe the bitfields.
+    - There are some [more differences](https://docs.micropython.org/en/latest/genrst/index.html) but so far I those weren't relevant for me.
+
+Here are the old instructions for programming with the GUI:
+
+4. Flash first stage loader (`low_load`):
+  - `nix run .#BLDevCube` (or download Dev Cube from Bouffallo and start that, e.g. for Mac OS)
+    - This repository only provides BL Dev Cube for `x86_64-linux`. If you use anything else, you must download it yourself.
+  - This is step 2 of `keep-downloads/prebuilt-linux/steps.md` but use the files in `./result-linux/files` (see above).
+    This instruction is rather short (so read on) but the image is useful.
+  - Here is a step-by-step guide of what to do:
+    - Enter bootloader (see above).
+    - Switch to the MCU tab of Dev Cube.
+    - M0 Group: Set `group0`, image address 0x58000000, file `./result-linux/files/low_load_bl808_m0.bin` ("m0" and ".bin")
+    - D0 Group: Set `group1`, image address 0x58000000, file `./result-linux/files/low_load_bl808_d0.bin` ("d0" and ".bin")
+    - On the right side, select UART, the higher one of the ttyUSB ports (e.g. ttyUSB1) and 2000000 baud (2Mbaud).
+    - Click "Create & download".
+  - In case you want to know what that does:
+    - The settings will be written into two config headers at the start of flash. The one for group0 is at 0x0000, the one
+      for group1 is at 0x1000. The bootrom will read these headers and start our firmware accordingly.
+    - `load_load_bl808_*.bin` are written to address 0x2000 (group0, M0) resp. 0x52000 (group1, D0). The files contain
+      raw RISC-V instructions. The `result-linux/files` directory also includes ".elf" (with debug symbols) and ".asm" (assembly text)
+      files of these programs. Have a look at the ".asm" if you are curious.
+      - Actually, the GUI creates the files `img_group0.bin` and `img_group1.bin`, which are slightly different from our
+        binaries. As far as I can tell, they are just zero-padded to a multiple of 16 bytes.
+    - 0x58000000 is the start of the flash execute-in-place (XIP) region. The bootrom will map the start of our `low_load`
+      binaries to this address. Execute-in-place means that the flash will act like a memory-mapped ROM so we can
+      run programs from flash without loading them into RAM.
+    - We are using the same address for both processors/groups. This might seem unusual but each processor (or rather each
+      group, I assume) have there own memory mapping. Therefore, M0 and D0 will see different data when looking at 0x58000000,
+      namely the start of their own `low_load` program. That way, we can use a similar linker script for both `low_load` programs
+      and the hardware will adjust the offset for us.
+    - As a side note, this mapping is a simple offset in the flash and 0x58000000 is the start of the range. This means that
+      `low_load` can access later parts of the flash (e.g. OpenSBI and kernel image) but addresses near the start of flash will
+      fall out of the XIP memory range and thus they are not accessible via XIP (unless we change the offset, which we can
+      do at runtime if we want). We can still access these parts, of course, but we have to use the `SF_CTRL` peripheral for that.
+    - `low_load` for M0 won't do much, yet. It can communicate with D0 and provide firmware services but these parts still have to be
+      written. @alexhorner and @arm000 seem to be working on that.
+      - My variant of `low_load` will enable JTAG on the SD card pins. This is useful with M1s dock board and the Sipeed RV-Debugger
+        but it will interfere with normal usage of SD card, of course.
+    - `low_load` for D0 will copy OpenSBI, device tree and Linux kernel to RAM. Then, it will jump to OpenSBI, which will initialize
+      some peripherals and then start Linux. OpenSBI will remain in memory because it provides service calls for Linux.
+    - If we figure out how to generate the config headers, we should be able to program these parts without using the GUI.
+      - The headers seem to be constant.
+5. Flash OpenSBI, device tree, Linux kernel and rootfs:
+  - You should still be in bootloader mode. If not, see previous step.
+  - `nix run -L -- .#bl808-linux-2-flash-img --port /dev/ttyUSB1`
+  - (or if you prefer the manual way: `result-tools/bin/bflb-iot-tool --chipname bl808 --port /dev/ttyUSB1 --baudrate 2000000 --addr 0xD2000  --firmware result-linux/files/whole_img_linux.bin  --single`)
+  - The Bouffallo tools love to swallow errors so don't trust the exit code. It should print "All success" when successful.
+  - You can repeat this step if you want to update the rootfs.
 
 Tale of a soft-bricked board
 ============================
@@ -330,8 +343,8 @@ Tale of a soft-bricked board
     my earlier experience when previously unused busybox applets weren't working as soon as the flash was "broken" (pinmux reconfigured).
     The list of symlinks should be all that is needed for that. I was using tmpfs - not enough to fill the RAM, I think, but maybe.
 
-Can we replace the Lab Dev GUI for programming?
-===============================================
+Can we replace the Lab Dev GUI for programming? -> Yes! :-)
+===========================================================
 
 - It writes our programs to fixed offsets in flash but it does add some headers.
   - The programs are padded by zeroes, I think to a multiple of 16 bytes.
@@ -429,4 +442,5 @@ Can we replace the Lab Dev GUI for programming?
   - We are using bflb-mcu-tool and bflb-iot-tool, which I found on Pypi.
   - I don't know of any git repo for those tools or some way to contribute. This is not ideal.
   - They do have a license file, which states that they are under MIT license. I guess this makes them even proper open source.
+- I have tested it with a new M1s dock board. This works as expected so we can assume that our method indeed writes all the relevant parts.
 

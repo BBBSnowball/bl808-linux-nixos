@@ -138,7 +138,7 @@
       inherit (all-pkgs.pkgsCross.riscv32)
         uboot;
 
-      default = packages.bl808-linux-2;
+      default = packages.bl808-linux-2-flash-script;
 
       keep-downloads = with all-pkgs; let
         downloads = builtins.mapAttrs (k: v: v.src or v.with-blobs.src) {
